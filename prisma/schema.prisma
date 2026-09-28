@@ -6,3 +6,32 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum BodyZone {
+  LEFT_PEC
+  RIGHT_PEC
+  UPPER_BACK
+  LOWER_BACK
+  LEFT_ARM
+  RIGHT_ARM
+  LEFT_THIGH
+  RIGHT_THIGH
+  ASS
+}
+
+model Athlete {
+  id                       String    @id @default(cuid())
+  name                     String
+  email                    String    @unique
+  isAdult                  Boolean   @default(false) @map("is_adult")
+  adultAttestedAt          DateTime? @map("adult_attested_at")
+  trustScore               Int       @default(50) @map("trust_score")
+  strikeCount              Int       @default(0) @map("strike_count")
+  isBanned                 Boolean   @default(false) @map("is_banned")
+  lifetimeSponsorshipCents Int       @default(0) @map("lifetime_sponsorship_cents")
+  stripeConnectAccountId   String?   @map("stripe_connect_account_id")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+
+  @@map("athletes")
+}
