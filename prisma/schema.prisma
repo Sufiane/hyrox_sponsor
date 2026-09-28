@@ -35,3 +35,13 @@ model Athlete {
 
   @@map("athletes")
 }
+
+model Bidder {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  stripeCustomerId String?  @map("stripe_customer_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("bidders")
+}
