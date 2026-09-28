@@ -6,6 +6,7 @@ import { ZonesModule } from './zones/zones.module.js';
 import { RacesModule } from './races/races.module.js';
 import { AuctionsModule } from './auctions/auctions.module.js';
 import { BidsModule } from './bids/bids.module.js';
+import { EscrowModule } from './escrow/escrow.module.js';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { BidsModule } from './bids/bids.module.js';
     RacesModule,
     AuctionsModule,
     BidsModule,
+    EscrowModule,
   ],
 })
 export class AppModule {}

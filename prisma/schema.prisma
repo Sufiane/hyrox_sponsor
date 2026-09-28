@@ -161,10 +161,33 @@ model Bid {
   placedAt    DateTime  @default(now()) @map("placed_at")
   status      BidStatus @default(LEADING)
 
-  auction           Auction  @relation("AuctionBids", fields: [auctionId], references: [id])
-  bidder            Bidder   @relation(fields: [bidderId], references: [id])
-  leadingForAuction Auction? @relation("AuctionLeadingBid")
+  auction            Auction             @relation("AuctionBids", fields: [auctionId], references: [id])
+  bidder             Bidder              @relation(fields: [bidderId], references: [id])
+  leadingForAuction  Auction?            @relation("AuctionLeadingBid")
+  escrowTransactions EscrowTransaction[]
 
   @@index([auctionId, status])
   @@map("bids")
+}
+
+enum EscrowTransactionType {
+  AUTHORIZED
+  VOIDED
+  CAPTURED
+  REFUNDED
+  FAILED
+}
+
+model EscrowTransaction {
+  id                    String                @id @default(cuid())
+  bidId                 String                @map("bid_id")
+  stripePaymentIntentId String                @map("stripe_payment_intent_id")
+  type                  EscrowTransactionType
+  amountCents           Int                   @map("amount_cents")
+  createdAt             DateTime              @default(now()) @map("created_at")
+
+  bid Bid @relation(fields: [bidId], references: [id])
+
+  @@index([bidId, type])
+  @@map("escrow_transactions")
 }
