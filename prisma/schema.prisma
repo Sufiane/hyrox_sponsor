@@ -136,9 +136,11 @@ model Auction {
   createdAt           DateTime       @default(now()) @map("created_at")
   updatedAt           DateTime       @updatedAt @map("updated_at")
 
-  raceEntry         RaceEntry @relation(fields: [raceEntryId], references: [id])
-  bids              Bid[]     @relation("AuctionBids")
-  currentLeadingBid Bid?      @relation("AuctionLeadingBid", fields: [currentLeadingBidId], references: [id])
+  raceEntry         RaceEntry         @relation(fields: [raceEntryId], references: [id])
+  bids              Bid[]             @relation("AuctionBids")
+  currentLeadingBid Bid?              @relation("AuctionLeadingBid", fields: [currentLeadingBidId], references: [id])
+  sponsorshipProof  SponsorshipProof?
+  disputes          Dispute[]
 
   @@unique([raceEntryId, zone])
   @@index([status, openAt, closeAt])
@@ -190,4 +192,48 @@ model EscrowTransaction {
 
   @@index([bidId, type])
   @@map("escrow_transactions")
+}
+
+enum ProofReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model SponsorshipProof {
+  id           String            @id @default(cuid())
+  auctionId    String            @unique @map("auction_id")
+  mediaUrl     String            @map("media_url")
+  submittedAt  DateTime          @default(now()) @map("submitted_at")
+  deadline     DateTime
+  reviewStatus ProofReviewStatus @default(PENDING) @map("review_status")
+  reviewedBy   String?           @map("reviewed_by")
+  reviewedAt   DateTime?         @map("reviewed_at")
+
+  auction Auction @relation(fields: [auctionId], references: [id])
+
+  @@map("sponsorship_proofs")
+}
+
+enum DisputeStatus {
+  OPEN
+  ARBITRATION
+  RESOLVED_REFUND
+  RESOLVED_UPHELD
+}
+
+model Dispute {
+  id              String        @id @default(cuid())
+  auctionId       String        @map("auction_id")
+  raisedBy        String        @map("raised_by")
+  reason          String
+  status          DisputeStatus @default(OPEN)
+  resolutionNotes String?       @map("resolution_notes")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  resolvedAt      DateTime?     @map("resolved_at")
+
+  auction Auction @relation(fields: [auctionId], references: [id])
+
+  @@index([auctionId, status])
+  @@map("disputes")
 }

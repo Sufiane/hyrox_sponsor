@@ -7,6 +7,8 @@ import { RacesModule } from './races/races.module.js';
 import { AuctionsModule } from './auctions/auctions.module.js';
 import { BidsModule } from './bids/bids.module.js';
 import { EscrowModule } from './escrow/escrow.module.js';
+import { ProofsModule } from './proofs/proofs.module.js';
+import { DisputesModule } from './disputes/disputes.module.js';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { EscrowModule } from './escrow/escrow.module.js';
     AuctionsModule,
     BidsModule,
     EscrowModule,
+    ProofsModule,
+    DisputesModule,
   ],
 })
 export class AppModule {}
