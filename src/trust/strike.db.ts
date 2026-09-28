@@ -8,7 +8,10 @@ export class StrikeDb {
 
   findActiveByAthlete(athleteId: string): Promise<Strike[]> {
     return this.prisma.strike.findMany({
-      where: { athleteId, excludedFromCount: { not: true } },
+      where: {
+        athleteId,
+        OR: [{ excludedFromCount: null }, { excludedFromCount: false }],
+      },
     });
   }
 }

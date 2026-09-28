@@ -70,7 +70,7 @@ model ZoneFloorPrice {
 model Race {
   id        String   @id @default(cuid())
   name      String
-  date      DateTime
+  date      DateTime @db.Timestamptz(3)
   timezone  String
   location  String
   createdAt DateTime @default(now()) @map("created_at")
@@ -96,7 +96,7 @@ model RaceEntry {
   verificationDocumentUrl String?                     @map("verification_document_url")
   verifiedAt              DateTime?                   @map("verified_at")
   verifiedBy              String?                     @map("verified_by")
-  raceDate                DateTime                    @map("race_date")
+  raceDate                DateTime                    @map("race_date") @db.Timestamptz(3)
   createdAt               DateTime                    @default(now()) @map("created_at")
   updatedAt               DateTime                    @updatedAt @map("updated_at")
 
@@ -128,8 +128,8 @@ model Auction {
   raceEntryId         String         @map("race_entry_id")
   zone                BodyZone
   floorPriceCents     Int            @map("floor_price_cents")
-  openAt              DateTime       @map("open_at")
-  closeAt             DateTime       @map("close_at")
+  openAt              DateTime       @map("open_at") @db.Timestamptz(3)
+  closeAt             DateTime       @map("close_at") @db.Timestamptz(3)
   status              AuctionStatus  @default(SCHEDULED)
   outcome             AuctionOutcome @default(PENDING)
   currentLeadingBidId String?        @unique @map("current_leading_bid_id")
@@ -143,6 +143,7 @@ model Auction {
   currentLeadingBid Bid?              @relation("AuctionLeadingBid", fields: [currentLeadingBidId], references: [id])
   sponsorshipProof  SponsorshipProof?
   disputes          Dispute[]
+  strikes           Strike[]
 
   @@unique([raceEntryId, zone])
   @@index([status, openAt, closeAt])
@@ -248,7 +249,8 @@ model Strike {
   excludedFromCount   Boolean? @map("excluded_from_count")
   createdAt           DateTime @default(now()) @map("created_at")
 
-  athlete Athlete @relation(fields: [athleteId], references: [id])
+  athlete           Athlete  @relation(fields: [athleteId], references: [id])
+  triggeringAuction Auction? @relation(fields: [triggeringAuctionId], references: [id], onDelete: SetNull)
 
   @@index([athleteId])
   @@map("strikes")
