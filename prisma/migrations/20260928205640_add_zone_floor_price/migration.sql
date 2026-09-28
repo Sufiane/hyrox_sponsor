@@ -16,6 +16,7 @@ CREATE UNIQUE INDEX "zone_floor_prices_athlete_id_zone_key" ON "zone_floor_price
 -- AddForeignKey
 ALTER TABLE "zone_floor_prices" ADD CONSTRAINT "zone_floor_prices_athlete_id_fkey" FOREIGN KEY ("athlete_id") REFERENCES "athletes"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
+-- Hand-written: Prisma cannot express CHECK constraints in schema.prisma.
 ALTER TABLE "zone_floor_prices"
   ADD CONSTRAINT "floor_price_minimum_1000_cents"
   CHECK ("floor_price_cents" >= 1000);

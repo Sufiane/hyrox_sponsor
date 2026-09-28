@@ -29,6 +29,7 @@ ALTER TABLE "bids" ADD CONSTRAINT "bids_auction_id_fkey" FOREIGN KEY ("auction_i
 ALTER TABLE "bids" ADD CONSTRAINT "bids_bidder_id_fkey" FOREIGN KEY ("bidder_id") REFERENCES "bidders"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 
+-- Hand-written: Prisma cannot express partial unique indexes in schema.prisma.
 CREATE UNIQUE INDEX "bid_one_leading_per_auction"
   ON "bids" ("auction_id")
   WHERE "status" = 'LEADING';
