@@ -47,7 +47,9 @@ foundation to build on without schema rework.
 
 ## 3. Stack decision
 
-- **Framework:** NestJS (TypeScript), Node 24 (latest LTS).
+- **Framework:** NestJS v12 (TypeScript), Node 24 (latest LTS).
+- **Module system:** Native ESM throughout — `package.json` has `"type": "module"`, `tsconfig.json` uses `module`/`moduleResolution`: `NodeNext`. Every relative import in source/test files carries an explicit `.js` extension per Node ESM resolution rules (package imports like `@nestjs/common`/`@prisma/client` are unaffected).
+- **Test runner:** Vitest (pairs naturally with ESM; no CommonJS-oriented transform step like `ts-jest` needed).
 - **ORM:** Prisma.
 - **Database:** PostgreSQL.
 - **Rationale:** CLAUDE.md's hexagonal `*.service.ts`/`*.db.ts` split is written in
@@ -256,8 +258,10 @@ design, and are reflected in this spec as the locked decision. Listed here per
 process requirement so the coordinator can do a final sanity check before
 implementation starts:
 
-1. **Stack choice**: NestJS + Prisma + PostgreSQL (no prior stack existed in this
-   empty repo — this was a first-ticket judgment call, confirmed).
+1. **Stack choice**: NestJS v12 + Prisma + PostgreSQL, built as native ESM
+   (`"type": "module"`, `NodeNext` module resolution), with Vitest as the test
+   runner (no prior stack existed in this empty repo — this was a first-ticket
+   judgment call, confirmed, later refined to NestJS v12/ESM/Vitest specifically).
 2. **Auction = one zone per athlete per race** (9 separate auctions per
    athlete+race), not one auction with 9 nested lots — confirmed.
 3. **EscrowTransaction is an audit-log table**, not 1:1 with `Bid` — only the

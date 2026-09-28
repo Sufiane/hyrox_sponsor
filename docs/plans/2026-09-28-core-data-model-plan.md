@@ -4,9 +4,9 @@
 
 **Goal:** Stand up the NestJS + Prisma + PostgreSQL project from scratch and implement the full core data model (athletes, races, zones, auctions, bids, escrow transactions, proofs, disputes, trust/strikes) plus minimal per-module `*.db.ts`/`*.service.ts` scaffolding, so HYR-3 through HYR-8 have a stable schema to build on.
 
-**Architecture:** A single NestJS app, Prisma as the only ORM (one `PrismaService` shared via a global `PrismaModule`), one feature module per aggregate root. Each module has exactly a `*.db.ts` (only file importing `@prisma/client`) and a `*.service.ts` (business-logic-free reads for this ticket — real business logic arrives in later tickets). `dependency-cruiser` enforces the split in CI/local lint. No controllers, no auth, no Stripe calls, no bid-placement or scheduling logic in this ticket.
+**Architecture:** A single NestJS v12 app built as native ESM (`"type": "module"`, `module`/`moduleResolution`: `NodeNext`, every relative import carries an explicit `.js` extension per Node ESM rules), Prisma as the only ORM (one `PrismaService` shared via a global `PrismaModule`), one feature module per aggregate root. Each module has exactly a `*.db.ts` (only file importing `@prisma/client`) and a `*.service.ts` (business-logic-free reads for this ticket — real business logic arrives in later tickets). `dependency-cruiser` enforces the split in CI/local lint. No controllers, no auth, no Stripe calls, no bid-placement or scheduling logic in this ticket.
 
-**Tech Stack:** Node 24, NestJS, TypeScript, Prisma, PostgreSQL 16 (local via docker-compose), Jest, dependency-cruiser, ESLint (with `@typescript-eslint/explicit-function-return-type` set to `error` per CLAUDE.md).
+**Tech Stack:** Node 24, NestJS v12 (ESM), TypeScript (`module`/`moduleResolution`: `NodeNext`), Prisma, PostgreSQL 16 (local via docker-compose), Vitest, dependency-cruiser, ESLint (with `@typescript-eslint/explicit-function-return-type` set to `error` per CLAUDE.md).
 
 **Spec:** `docs/specs/2026-09-28-core-data-model-design.md`
 
@@ -18,6 +18,8 @@
 - No inline `if` — always braced, body on its own line. Blank line before `if`/`for`/`while`/`return`/`throw` unless first statement in the block.
 - Constructor-injected dependencies are `private readonly`.
 - Money is always `Int` cents in Prisma — never floats.
+- Project is native ESM: `package.json` has `"type": "module"`, `tsconfig.json` uses `module`/`moduleResolution`: `NodeNext`. Every relative import (`./foo`, `../foo`) in source and test files must carry an explicit `.js` extension (Node ESM resolution requirement) — package imports (`@nestjs/common`, `@prisma/client`, `vitest`, etc.) are unaffected.
+- NestJS packages pinned to v12 (exact resolved patch version from `package-lock.json`, per the pinning rule above).
 - `*.service.ts`/`*.usecase.ts` files must never import `@prisma/client` — only `*.db.ts` files may. Enforced by `dependency-cruiser`.
 - Both `*Service` and `*Db` are registered as providers in their module (CLAUDE.md example shape).
 - Delete dead code rather than commenting it out. No comments restating what the code already says.
@@ -32,7 +34,7 @@ package.json
 tsconfig.json
 nest-cli.json
 eslint.config.mjs
-jest.config.js
+vitest.config.ts
 .dependency-cruiser.cjs
 docker-compose.yml
 .env.example
@@ -103,35 +105,42 @@ src/
 
 ---
 
-### Task 1: Project scaffold (NestJS, TypeScript, lint, test tooling)
+### Task 1: Project scaffold (NestJS v12, ESM TypeScript, lint, test tooling)
 
 **Files:**
-- Create: `package.json`, `tsconfig.json`, `tsconfig.build.json`, `nest-cli.json`, `eslint.config.mjs`, `jest.config.js`, `src/main.ts`, `src/app.module.ts`
+- Create: `package.json`, `tsconfig.json`, `tsconfig.build.json`, `nest-cli.json`, `eslint.config.mjs`, `vitest.config.ts`, `src/main.ts`, `src/app.module.ts`
 
 **Interfaces:**
-- Produces: a running `npm run build`, `npm run lint`, `npm test` pipeline that later tasks add to.
+- Produces: a running `npm run build`, `npm run lint`, `npm test` pipeline that later tasks add to. All later tasks' relative imports must carry an explicit `.js` extension (Node ESM requirement) even though the source files are `.ts` — TypeScript resolves this correctly under `moduleResolution: NodeNext` because it maps to the compiled `.js` output path.
 
-- [ ] **Step 1: Init npm project and install core deps (unpinned first)**
+- [ ] **Step 1: Init npm project and install core deps (unpinned first, NestJS pinned to major v12)**
 
 ```bash
 npm init -y
-npm install @nestjs/common @nestjs/core @nestjs/platform-express reflect-metadata rxjs
-npm install -D typescript @types/node @types/express @nestjs/cli @nestjs/schematics @nestjs/testing jest ts-jest @types/jest eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser
+npm install @nestjs/common@12 @nestjs/core@12 @nestjs/platform-express@12 reflect-metadata rxjs
+npm install -D typescript @types/node @types/express @nestjs/cli@12 @nestjs/schematics@12 @nestjs/testing@12 vitest eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser
 ```
 
-- [ ] **Step 2: Pin every dependency to its resolved version**
+- [ ] **Step 2: Pin every dependency to its resolved version and mark the package as ESM**
 
-Read the resolved versions out of the generated `package-lock.json` and rewrite `package.json` so every entry in `dependencies`/`devDependencies` is an exact version (no `^`/`~`).
+Read the resolved versions out of the generated `package-lock.json` and rewrite `package.json` so every entry in `dependencies`/`devDependencies` is an exact version (no `^`/`~`). Also add:
 
-- [ ] **Step 3: Add `tsconfig.json`**
+```json
+{
+  "type": "module",
+  "main": "dist/main.js"
+}
+```
+
+- [ ] **Step 3: Add `tsconfig.json` configured for native ESM**
 
 ```json
 {
   "compilerOptions": {
-    "module": "commonjs",
-    "target": "ES2023",
-    "lib": ["ES2023"],
-    "moduleResolution": "node",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "lib": ["ES2022"],
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
@@ -141,7 +150,8 @@ Read the resolved versions out of the generated `package-lock.json` and rewrite 
     "strict": true,
     "skipLibCheck": true,
     "outDir": "./dist",
-    "baseUrl": "./"
+    "baseUrl": "./",
+    "types": ["vitest/globals"]
   }
 }
 ```
@@ -193,20 +203,21 @@ export default [
 ];
 ```
 
-- [ ] **Step 7: Add `jest.config.js`**
+- [ ] **Step 7: Add `vitest.config.ts`**
 
-```js
-module.exports = {
-  moduleFileExtensions: ['js', 'json', 'ts'],
-  rootDir: 'src',
-  testRegex: '.*\\.spec\\.ts$',
-  transform: {
-    '^.+\\.(t|j)s$': 'ts-jest',
+```typescript
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'node',
+    include: ['src/**/*.spec.ts'],
   },
-  collectCoverageFrom: ['**/*.(t|j)s'],
-  testEnvironment: 'node',
-};
+});
 ```
+
+`globals: true` makes `describe`/`it`/`expect`/`vi` available in every spec file without an explicit import, matching the mocking style (`vi.fn()`) used throughout this plan. The `types: ["vitest/globals"]` entry added to `tsconfig.json` in Step 3 is what makes TypeScript recognize those globals.
 
 - [ ] **Step 8: Add minimal `src/app.module.ts` and `src/main.ts`**
 
@@ -223,7 +234,7 @@ export class AppModule {}
 ```typescript
 // src/main.ts
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { AppModule } from './app.module.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
@@ -240,7 +251,7 @@ bootstrap();
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "jest"
+    "test": "vitest run"
   }
 }
 ```
@@ -248,17 +259,16 @@ bootstrap();
 - [ ] **Step 10: Verify build and lint run clean**
 
 Run: `npm run build && npm run lint`
-Expected: both exit 0 (no source files yet beyond `app.module.ts`/`main.ts`, nothing to lint-fail).
+Expected: both exit 0 (no source files yet beyond `app.module.ts`/`main.ts`, nothing to lint-fail). If `tsc` reports it can't find `NodeNext` module resolution rules, confirm the installed `typescript` version is 5.x or later (`NodeNext` requires it).
 
 - [ ] **Step 11: Commit**
 
 ```bash
-git add package.json package-lock.json tsconfig.json tsconfig.build.json nest-cli.json eslint.config.mjs jest.config.js src/main.ts src/app.module.ts
-git commit -m "chore: scaffold NestJS project with pinned deps and lint/test tooling"
+git add package.json package-lock.json tsconfig.json tsconfig.build.json nest-cli.json eslint.config.mjs vitest.config.ts src/main.ts src/app.module.ts
+git commit -m "chore: scaffold NestJS v12 ESM project with pinned deps and lint/test tooling"
 ```
 
 ---
-
 ### Task 2: Prisma setup, PrismaService, and local PostgreSQL
 
 **Files:**
@@ -345,7 +355,7 @@ export class PrismaService
 
 ```typescript
 import { Global, Module } from '@nestjs/common';
-import { PrismaService } from './prisma.service';
+import { PrismaService } from './prisma.service.js';
 
 @Global()
 @Module({
@@ -360,7 +370,7 @@ export class PrismaModule {}
 ```typescript
 // src/app.module.ts
 import { Module } from '@nestjs/common';
-import { PrismaModule } from './prisma/prisma.module';
+import { PrismaModule } from './prisma/prisma.module.js';
 
 @Module({
   imports: [PrismaModule],
@@ -532,15 +542,15 @@ Expected: creates `prisma/migrations/<timestamp>_add_athlete/migration.sql`, app
 ```typescript
 // src/athletes/athlete.service.spec.ts
 import { NotFoundException } from '@nestjs/common';
-import { AthleteService } from './athlete.service';
-import { AthleteDb } from './athlete.db';
+import { AthleteService } from './athlete.service.js';
+import { AthleteDb } from './athlete.db.js';
 
 describe('AthleteService', () => {
   describe('getById', () => {
     describe('when the athlete exists', () => {
       it('returns the athlete', async () => {
         const athlete = { id: 'athlete-1', name: 'Jamie Lee' };
-        const db = { findById: jest.fn().mockResolvedValue(athlete) } as unknown as AthleteDb;
+        const db = { findById: vi.fn().mockResolvedValue(athlete) } as unknown as AthleteDb;
         const service = new AthleteService(db);
 
         const result = await service.getById('athlete-1');
@@ -551,7 +561,7 @@ describe('AthleteService', () => {
 
     describe('when the athlete does not exist', () => {
       it('throws NotFoundException', async () => {
-        const db = { findById: jest.fn().mockResolvedValue(null) } as unknown as AthleteDb;
+        const db = { findById: vi.fn().mockResolvedValue(null) } as unknown as AthleteDb;
         const service = new AthleteService(db);
 
         await expect(service.getById('missing')).rejects.toThrow(NotFoundException);
@@ -571,7 +581,7 @@ Expected: FAIL — `athlete.service.ts`/`athlete.db.ts` don't exist yet.
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { Athlete } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class AthleteDb {
@@ -588,7 +598,7 @@ export class AthleteDb {
 ```typescript
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Athlete } from '@prisma/client';
-import { AthleteDb } from './athlete.db';
+import { AthleteDb } from './athlete.db.js';
 
 @Injectable()
 export class AthleteService {
@@ -616,8 +626,8 @@ Expected: PASS.
 ```typescript
 // src/athletes/athletes.module.ts
 import { Module } from '@nestjs/common';
-import { AthleteDb } from './athlete.db';
-import { AthleteService } from './athlete.service';
+import { AthleteDb } from './athlete.db.js';
+import { AthleteService } from './athlete.service.js';
 
 @Module({
   providers: [AthleteService, AthleteDb],
@@ -629,8 +639,8 @@ export class AthletesModule {}
 ```typescript
 // src/app.module.ts
 import { Module } from '@nestjs/common';
-import { PrismaModule } from './prisma/prisma.module';
-import { AthletesModule } from './athletes/athletes.module';
+import { PrismaModule } from './prisma/prisma.module.js';
+import { AthletesModule } from './athletes/athletes.module.js';
 
 @Module({
   imports: [PrismaModule, AthletesModule],
@@ -683,14 +693,14 @@ Expected: applies cleanly.
 
 ```typescript
 // src/bidders/bidder.service.spec.ts
-import { BidderService } from './bidder.service';
-import { BidderDb } from './bidder.db';
+import { BidderService } from './bidder.service.js';
+import { BidderDb } from './bidder.db.js';
 
 describe('BidderService', () => {
   describe('getOrCreateByEmail', () => {
     it('delegates to the db upsert and returns the bidder', async () => {
       const bidder = { id: 'bidder-1', email: 'brand@example.com' };
-      const db = { upsertByEmail: jest.fn().mockResolvedValue(bidder) } as unknown as BidderDb;
+      const db = { upsertByEmail: vi.fn().mockResolvedValue(bidder) } as unknown as BidderDb;
       const service = new BidderService(db);
 
       const result = await service.getOrCreateByEmail('brand@example.com');
@@ -712,7 +722,7 @@ Expected: FAIL.
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { Bidder } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class BidderDb {
@@ -737,7 +747,7 @@ export class BidderDb {
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { Bidder } from '@prisma/client';
-import { BidderDb } from './bidder.db';
+import { BidderDb } from './bidder.db.js';
 
 @Injectable()
 export class BidderService {
@@ -759,8 +769,8 @@ Expected: PASS.
 ```typescript
 // src/bidders/bidders.module.ts
 import { Module } from '@nestjs/common';
-import { BidderDb } from './bidder.db';
-import { BidderService } from './bidder.service';
+import { BidderDb } from './bidder.db.js';
+import { BidderService } from './bidder.service.js';
 
 @Module({
   providers: [BidderService, BidderDb],
@@ -863,15 +873,15 @@ EOF
 
 ```typescript
 // src/zones/zone-floor-price.service.spec.ts
-import { ZoneFloorPriceService } from './zone-floor-price.service';
-import { ZoneFloorPriceDb } from './zone-floor-price.db';
+import { ZoneFloorPriceService } from './zone-floor-price.service.js';
+import { ZoneFloorPriceDb } from './zone-floor-price.db.js';
 
 describe('ZoneFloorPriceService', () => {
   describe('getFloorPriceCents', () => {
     describe('when the athlete has set a floor for the zone', () => {
       it('returns the stored floor price', async () => {
         const db = {
-          findByAthleteAndZone: jest.fn().mockResolvedValue({ floorPriceCents: 2500 }),
+          findByAthleteAndZone: vi.fn().mockResolvedValue({ floorPriceCents: 2500 }),
         } as unknown as ZoneFloorPriceDb;
         const service = new ZoneFloorPriceService(db);
 
@@ -884,7 +894,7 @@ describe('ZoneFloorPriceService', () => {
     describe('when the athlete has not set a floor for the zone', () => {
       it('returns the platform minimum of 1000 cents', async () => {
         const db = {
-          findByAthleteAndZone: jest.fn().mockResolvedValue(null),
+          findByAthleteAndZone: vi.fn().mockResolvedValue(null),
         } as unknown as ZoneFloorPriceDb;
         const service = new ZoneFloorPriceService(db);
 
@@ -907,7 +917,7 @@ Expected: FAIL.
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { BodyZone, ZoneFloorPrice } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class ZoneFloorPriceDb {
@@ -926,7 +936,7 @@ export class ZoneFloorPriceDb {
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { BodyZone } from '@prisma/client';
-import { ZoneFloorPriceDb } from './zone-floor-price.db';
+import { ZoneFloorPriceDb } from './zone-floor-price.db.js';
 
 const PLATFORM_MINIMUM_FLOOR_PRICE_CENTS = 1000;
 
@@ -956,8 +966,8 @@ Expected: PASS.
 ```typescript
 // src/zones/zones.module.ts
 import { Module } from '@nestjs/common';
-import { ZoneFloorPriceDb } from './zone-floor-price.db';
-import { ZoneFloorPriceService } from './zone-floor-price.service';
+import { ZoneFloorPriceDb } from './zone-floor-price.db.js';
+import { ZoneFloorPriceService } from './zone-floor-price.service.js';
 
 @Module({
   providers: [ZoneFloorPriceService, ZoneFloorPriceDb],
@@ -1073,15 +1083,15 @@ EOF
 ```typescript
 // src/races/race.service.spec.ts
 import { NotFoundException } from '@nestjs/common';
-import { RaceService } from './race.service';
-import { RaceDb } from './race.db';
+import { RaceService } from './race.service.js';
+import { RaceDb } from './race.db.js';
 
 describe('RaceService', () => {
   describe('getById', () => {
     describe('when the race exists', () => {
       it('returns the race', async () => {
         const race = { id: 'race-1', name: 'Chicago Hyrox' };
-        const db = { findById: jest.fn().mockResolvedValue(race) } as unknown as RaceDb;
+        const db = { findById: vi.fn().mockResolvedValue(race) } as unknown as RaceDb;
         const service = new RaceService(db);
 
         const result = await service.getById('race-1');
@@ -1092,7 +1102,7 @@ describe('RaceService', () => {
 
     describe('when the race does not exist', () => {
       it('throws NotFoundException', async () => {
-        const db = { findById: jest.fn().mockResolvedValue(null) } as unknown as RaceDb;
+        const db = { findById: vi.fn().mockResolvedValue(null) } as unknown as RaceDb;
         const service = new RaceService(db);
 
         await expect(service.getById('missing')).rejects.toThrow(NotFoundException);
@@ -1106,15 +1116,15 @@ describe('RaceService', () => {
 
 ```typescript
 // src/races/race-entry.service.spec.ts
-import { RaceEntryService } from './race-entry.service';
-import { RaceEntryDb } from './race-entry.db';
+import { RaceEntryService } from './race-entry.service.js';
+import { RaceEntryDb } from './race-entry.db.js';
 
 describe('RaceEntryService', () => {
   describe('isVerified', () => {
     describe('when no race entry exists', () => {
       it('returns false', async () => {
         const db = {
-          findByAthleteAndRace: jest.fn().mockResolvedValue(null),
+          findByAthleteAndRace: vi.fn().mockResolvedValue(null),
         } as unknown as RaceEntryDb;
         const service = new RaceEntryService(db);
 
@@ -1127,7 +1137,7 @@ describe('RaceEntryService', () => {
     describe('when the race entry is VERIFIED', () => {
       it('returns true', async () => {
         const db = {
-          findByAthleteAndRace: jest
+          findByAthleteAndRace: vi
             .fn()
             .mockResolvedValue({ verificationStatus: 'VERIFIED' }),
         } as unknown as RaceEntryDb;
@@ -1142,7 +1152,7 @@ describe('RaceEntryService', () => {
     describe('when the race entry is PENDING', () => {
       it('returns false', async () => {
         const db = {
-          findByAthleteAndRace: jest
+          findByAthleteAndRace: vi
             .fn()
             .mockResolvedValue({ verificationStatus: 'PENDING' }),
         } as unknown as RaceEntryDb;
@@ -1168,7 +1178,7 @@ Expected: FAIL (files don't exist yet).
 // src/races/race.db.ts
 import { Injectable } from '@nestjs/common';
 import { Race } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class RaceDb {
@@ -1184,7 +1194,7 @@ export class RaceDb {
 // src/races/race.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Race } from '@prisma/client';
-import { RaceDb } from './race.db';
+import { RaceDb } from './race.db.js';
 
 @Injectable()
 export class RaceService {
@@ -1208,7 +1218,7 @@ export class RaceService {
 // src/races/race-entry.db.ts
 import { Injectable } from '@nestjs/common';
 import { RaceEntry } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class RaceEntryDb {
@@ -1223,7 +1233,7 @@ export class RaceEntryDb {
 ```typescript
 // src/races/race-entry.service.ts
 import { Injectable } from '@nestjs/common';
-import { RaceEntryDb } from './race-entry.db';
+import { RaceEntryDb } from './race-entry.db.js';
 
 @Injectable()
 export class RaceEntryService {
@@ -1251,10 +1261,10 @@ Expected: PASS.
 ```typescript
 // src/races/races.module.ts
 import { Module } from '@nestjs/common';
-import { RaceDb } from './race.db';
-import { RaceService } from './race.service';
-import { RaceEntryDb } from './race-entry.db';
-import { RaceEntryService } from './race-entry.service';
+import { RaceDb } from './race.db.js';
+import { RaceService } from './race.service.js';
+import { RaceEntryDb } from './race-entry.db.js';
+import { RaceEntryService } from './race-entry.service.js';
 
 @Module({
   providers: [RaceService, RaceDb, RaceEntryService, RaceEntryDb],
@@ -1350,15 +1360,15 @@ Expected: applies cleanly.
 ```typescript
 // src/auctions/auction.service.spec.ts
 import { NotFoundException } from '@nestjs/common';
-import { AuctionService } from './auction.service';
-import { AuctionDb } from './auction.db';
+import { AuctionService } from './auction.service.js';
+import { AuctionDb } from './auction.db.js';
 
 describe('AuctionService', () => {
   describe('getById', () => {
     describe('when the auction exists', () => {
       it('returns the auction', async () => {
         const auction = { id: 'auction-1', zone: 'LEFT_PEC' };
-        const db = { findById: jest.fn().mockResolvedValue(auction) } as unknown as AuctionDb;
+        const db = { findById: vi.fn().mockResolvedValue(auction) } as unknown as AuctionDb;
         const service = new AuctionService(db);
 
         const result = await service.getById('auction-1');
@@ -1369,7 +1379,7 @@ describe('AuctionService', () => {
 
     describe('when the auction does not exist', () => {
       it('throws NotFoundException', async () => {
-        const db = { findById: jest.fn().mockResolvedValue(null) } as unknown as AuctionDb;
+        const db = { findById: vi.fn().mockResolvedValue(null) } as unknown as AuctionDb;
         const service = new AuctionService(db);
 
         await expect(service.getById('missing')).rejects.toThrow(NotFoundException);
@@ -1389,7 +1399,7 @@ Expected: FAIL.
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { Auction } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class AuctionDb {
@@ -1406,7 +1416,7 @@ export class AuctionDb {
 ```typescript
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Auction } from '@prisma/client';
-import { AuctionDb } from './auction.db';
+import { AuctionDb } from './auction.db.js';
 
 @Injectable()
 export class AuctionService {
@@ -1434,8 +1444,8 @@ Expected: PASS.
 ```typescript
 // src/auctions/auctions.module.ts
 import { Module } from '@nestjs/common';
-import { AuctionDb } from './auction.db';
-import { AuctionService } from './auction.service';
+import { AuctionDb } from './auction.db.js';
+import { AuctionService } from './auction.service.js';
 
 @Module({
   providers: [AuctionService, AuctionDb],
@@ -1566,15 +1576,15 @@ EOF
 
 ```typescript
 // src/bids/bid.service.spec.ts
-import { BidService } from './bid.service';
-import { BidDb } from './bid.db';
+import { BidService } from './bid.service.js';
+import { BidDb } from './bid.db.js';
 
 describe('BidService', () => {
   describe('getLeadingBid', () => {
     describe('when a leading bid exists', () => {
       it('returns it', async () => {
         const bid = { id: 'bid-1', status: 'LEADING' };
-        const db = { findLeadingForAuction: jest.fn().mockResolvedValue(bid) } as unknown as BidDb;
+        const db = { findLeadingForAuction: vi.fn().mockResolvedValue(bid) } as unknown as BidDb;
         const service = new BidService(db);
 
         const result = await service.getLeadingBid('auction-1');
@@ -1586,7 +1596,7 @@ describe('BidService', () => {
     describe('when no leading bid exists', () => {
       it('returns null', async () => {
         const db = {
-          findLeadingForAuction: jest.fn().mockResolvedValue(null),
+          findLeadingForAuction: vi.fn().mockResolvedValue(null),
         } as unknown as BidDb;
         const service = new BidService(db);
 
@@ -1609,7 +1619,7 @@ Expected: FAIL.
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { Bid } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class BidDb {
@@ -1628,7 +1638,7 @@ export class BidDb {
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { Bid } from '@prisma/client';
-import { BidDb } from './bid.db';
+import { BidDb } from './bid.db.js';
 
 @Injectable()
 export class BidService {
@@ -1650,8 +1660,8 @@ Expected: PASS.
 ```typescript
 // src/bids/bids.module.ts
 import { Module } from '@nestjs/common';
-import { BidDb } from './bid.db';
-import { BidService } from './bid.service';
+import { BidDb } from './bid.db.js';
+import { BidService } from './bid.service.js';
 
 @Module({
   providers: [BidService, BidDb],
@@ -1729,15 +1739,15 @@ Expected: applies cleanly.
 
 ```typescript
 // src/escrow/escrow-transaction.service.spec.ts
-import { EscrowTransactionService } from './escrow-transaction.service';
-import { EscrowTransactionDb } from './escrow-transaction.db';
+import { EscrowTransactionService } from './escrow-transaction.service.js';
+import { EscrowTransactionDb } from './escrow-transaction.db.js';
 
 describe('EscrowTransactionService', () => {
   describe('hasActiveAuthorization', () => {
     describe('when an AUTHORIZED transaction exists for the bid', () => {
       it('returns true', async () => {
         const db = {
-          findActiveAuthorizationForBid: jest
+          findActiveAuthorizationForBid: vi
             .fn()
             .mockResolvedValue({ id: 'escrow-1', type: 'AUTHORIZED' }),
         } as unknown as EscrowTransactionDb;
@@ -1752,7 +1762,7 @@ describe('EscrowTransactionService', () => {
     describe('when no AUTHORIZED transaction exists for the bid', () => {
       it('returns false', async () => {
         const db = {
-          findActiveAuthorizationForBid: jest.fn().mockResolvedValue(null),
+          findActiveAuthorizationForBid: vi.fn().mockResolvedValue(null),
         } as unknown as EscrowTransactionDb;
         const service = new EscrowTransactionService(db);
 
@@ -1775,7 +1785,7 @@ Expected: FAIL.
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { EscrowTransaction } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class EscrowTransactionDb {
@@ -1794,7 +1804,7 @@ export class EscrowTransactionDb {
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { EscrowTransactionDb } from './escrow-transaction.db';
+import { EscrowTransactionDb } from './escrow-transaction.db.js';
 
 @Injectable()
 export class EscrowTransactionService {
@@ -1818,8 +1828,8 @@ Expected: PASS.
 ```typescript
 // src/escrow/escrow.module.ts
 import { Module } from '@nestjs/common';
-import { EscrowTransactionDb } from './escrow-transaction.db';
-import { EscrowTransactionService } from './escrow-transaction.service';
+import { EscrowTransactionDb } from './escrow-transaction.db.js';
+import { EscrowTransactionService } from './escrow-transaction.service.js';
 
 @Module({
   providers: [EscrowTransactionService, EscrowTransactionDb],
@@ -1918,15 +1928,15 @@ Expected: applies cleanly.
 
 ```typescript
 // src/proofs/sponsorship-proof.service.spec.ts
-import { SponsorshipProofService } from './sponsorship-proof.service';
-import { SponsorshipProofDb } from './sponsorship-proof.db';
+import { SponsorshipProofService } from './sponsorship-proof.service.js';
+import { SponsorshipProofDb } from './sponsorship-proof.db.js';
 
 describe('SponsorshipProofService', () => {
   describe('getByAuctionId', () => {
     describe('when a proof has been submitted', () => {
       it('returns it', async () => {
         const proof = { id: 'proof-1', auctionId: 'auction-1' };
-        const db = { findByAuctionId: jest.fn().mockResolvedValue(proof) } as unknown as SponsorshipProofDb;
+        const db = { findByAuctionId: vi.fn().mockResolvedValue(proof) } as unknown as SponsorshipProofDb;
         const service = new SponsorshipProofService(db);
 
         const result = await service.getByAuctionId('auction-1');
@@ -1937,7 +1947,7 @@ describe('SponsorshipProofService', () => {
 
     describe('when no proof has been submitted', () => {
       it('returns null', async () => {
-        const db = { findByAuctionId: jest.fn().mockResolvedValue(null) } as unknown as SponsorshipProofDb;
+        const db = { findByAuctionId: vi.fn().mockResolvedValue(null) } as unknown as SponsorshipProofDb;
         const service = new SponsorshipProofService(db);
 
         const result = await service.getByAuctionId('auction-1');
@@ -1953,15 +1963,15 @@ describe('SponsorshipProofService', () => {
 
 ```typescript
 // src/disputes/dispute.service.spec.ts
-import { DisputeService } from './dispute.service';
-import { DisputeDb } from './dispute.db';
+import { DisputeService } from './dispute.service.js';
+import { DisputeDb } from './dispute.db.js';
 
 describe('DisputeService', () => {
   describe('hasOpenDispute', () => {
     describe('when an OPEN dispute exists for the auction', () => {
       it('returns true', async () => {
         const db = {
-          findOpenForAuction: jest.fn().mockResolvedValue({ id: 'dispute-1', status: 'OPEN' }),
+          findOpenForAuction: vi.fn().mockResolvedValue({ id: 'dispute-1', status: 'OPEN' }),
         } as unknown as DisputeDb;
         const service = new DisputeService(db);
 
@@ -1973,7 +1983,7 @@ describe('DisputeService', () => {
 
     describe('when no OPEN dispute exists for the auction', () => {
       it('returns false', async () => {
-        const db = { findOpenForAuction: jest.fn().mockResolvedValue(null) } as unknown as DisputeDb;
+        const db = { findOpenForAuction: vi.fn().mockResolvedValue(null) } as unknown as DisputeDb;
         const service = new DisputeService(db);
 
         const result = await service.hasOpenDispute('auction-1');
@@ -1996,7 +2006,7 @@ Expected: FAIL.
 // src/proofs/sponsorship-proof.db.ts
 import { Injectable } from '@nestjs/common';
 import { SponsorshipProof } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class SponsorshipProofDb {
@@ -2012,7 +2022,7 @@ export class SponsorshipProofDb {
 // src/proofs/sponsorship-proof.service.ts
 import { Injectable } from '@nestjs/common';
 import { SponsorshipProof } from '@prisma/client';
-import { SponsorshipProofDb } from './sponsorship-proof.db';
+import { SponsorshipProofDb } from './sponsorship-proof.db.js';
 
 @Injectable()
 export class SponsorshipProofService {
@@ -2030,7 +2040,7 @@ export class SponsorshipProofService {
 // src/disputes/dispute.db.ts
 import { Injectable } from '@nestjs/common';
 import { Dispute } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class DisputeDb {
@@ -2045,7 +2055,7 @@ export class DisputeDb {
 ```typescript
 // src/disputes/dispute.service.ts
 import { Injectable } from '@nestjs/common';
-import { DisputeDb } from './dispute.db';
+import { DisputeDb } from './dispute.db.js';
 
 @Injectable()
 export class DisputeService {
@@ -2069,8 +2079,8 @@ Expected: PASS.
 ```typescript
 // src/proofs/proofs.module.ts
 import { Module } from '@nestjs/common';
-import { SponsorshipProofDb } from './sponsorship-proof.db';
-import { SponsorshipProofService } from './sponsorship-proof.service';
+import { SponsorshipProofDb } from './sponsorship-proof.db.js';
+import { SponsorshipProofService } from './sponsorship-proof.service.js';
 
 @Module({
   providers: [SponsorshipProofService, SponsorshipProofDb],
@@ -2082,8 +2092,8 @@ export class ProofsModule {}
 ```typescript
 // src/disputes/disputes.module.ts
 import { Module } from '@nestjs/common';
-import { DisputeDb } from './dispute.db';
-import { DisputeService } from './dispute.service';
+import { DisputeDb } from './dispute.db.js';
+import { DisputeService } from './dispute.service.js';
 
 @Module({
   providers: [DisputeService, DisputeDb],
@@ -2169,16 +2179,16 @@ Expected: applies cleanly.
 
 ```typescript
 // src/trust/trust.service.spec.ts
-import { TrustService } from './trust.service';
-import { StrikeDb } from './strike.db';
-import { TrustScoreEventDb } from './trust-score-event.db';
+import { TrustService } from './trust.service.js';
+import { StrikeDb } from './strike.db.js';
+import { TrustScoreEventDb } from './trust-score-event.db.js';
 
 describe('TrustService', () => {
   describe('getActiveStrikeCount', () => {
     describe('when the athlete has active strikes', () => {
       it('returns the count of strikes not excluded from counting', async () => {
         const strikeDb = {
-          findActiveByAthlete: jest
+          findActiveByAthlete: vi
             .fn()
             .mockResolvedValue([{ id: 's1' }, { id: 's2' }]),
         } as unknown as StrikeDb;
@@ -2194,7 +2204,7 @@ describe('TrustService', () => {
     describe('when the athlete has no active strikes', () => {
       it('returns zero', async () => {
         const strikeDb = {
-          findActiveByAthlete: jest.fn().mockResolvedValue([]),
+          findActiveByAthlete: vi.fn().mockResolvedValue([]),
         } as unknown as StrikeDb;
         const trustScoreEventDb = {} as TrustScoreEventDb;
         const service = new TrustService(strikeDb, trustScoreEventDb);
@@ -2211,7 +2221,7 @@ describe('TrustService', () => {
       const strikeDb = {} as StrikeDb;
       const events = [{ id: 'event-1', oldValue: 50, newValue: 45 }];
       const trustScoreEventDb = {
-        findByAthlete: jest.fn().mockResolvedValue(events),
+        findByAthlete: vi.fn().mockResolvedValue(events),
       } as unknown as TrustScoreEventDb;
       const service = new TrustService(strikeDb, trustScoreEventDb);
 
@@ -2233,7 +2243,7 @@ Expected: FAIL.
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { Strike } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class StrikeDb {
@@ -2252,7 +2262,7 @@ export class StrikeDb {
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { TrustScoreEvent } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class TrustScoreEventDb {
@@ -2272,8 +2282,8 @@ export class TrustScoreEventDb {
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { TrustScoreEvent } from '@prisma/client';
-import { StrikeDb } from './strike.db';
-import { TrustScoreEventDb } from './trust-score-event.db';
+import { StrikeDb } from './strike.db.js';
+import { TrustScoreEventDb } from './trust-score-event.db.js';
 
 @Injectable()
 export class TrustService {
@@ -2304,9 +2314,9 @@ Expected: PASS.
 ```typescript
 // src/trust/trust.module.ts
 import { Module } from '@nestjs/common';
-import { StrikeDb } from './strike.db';
-import { TrustScoreEventDb } from './trust-score-event.db';
-import { TrustService } from './trust.service';
+import { StrikeDb } from './strike.db.js';
+import { TrustScoreEventDb } from './trust-score-event.db.js';
+import { TrustService } from './trust.service.js';
 
 @Module({
   providers: [TrustService, StrikeDb, TrustScoreEventDb],
@@ -2345,17 +2355,17 @@ git commit -m "feat: add Strike and TrustScoreEvent models, trust module"
 
 ```typescript
 import { Module } from '@nestjs/common';
-import { PrismaModule } from './prisma/prisma.module';
-import { AthletesModule } from './athletes/athletes.module';
-import { BiddersModule } from './bidders/bidders.module';
-import { ZonesModule } from './zones/zones.module';
-import { RacesModule } from './races/races.module';
-import { AuctionsModule } from './auctions/auctions.module';
-import { BidsModule } from './bids/bids.module';
-import { EscrowModule } from './escrow/escrow.module';
-import { ProofsModule } from './proofs/proofs.module';
-import { DisputesModule } from './disputes/disputes.module';
-import { TrustModule } from './trust/trust.module';
+import { PrismaModule } from './prisma/prisma.module.js';
+import { AthletesModule } from './athletes/athletes.module.js';
+import { BiddersModule } from './bidders/bidders.module.js';
+import { ZonesModule } from './zones/zones.module.js';
+import { RacesModule } from './races/races.module.js';
+import { AuctionsModule } from './auctions/auctions.module.js';
+import { BidsModule } from './bids/bids.module.js';
+import { EscrowModule } from './escrow/escrow.module.js';
+import { ProofsModule } from './proofs/proofs.module.js';
+import { DisputesModule } from './disputes/disputes.module.js';
+import { TrustModule } from './trust/trust.module.js';
 
 @Module({
   imports: [
