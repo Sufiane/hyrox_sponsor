@@ -33,8 +33,10 @@ model Athlete {
   createdAt                DateTime  @default(now()) @map("created_at")
   updatedAt                DateTime  @updatedAt @map("updated_at")
 
-  zoneFloorPrices ZoneFloorPrice[]
-  raceEntries     RaceEntry[]
+  zoneFloorPrices  ZoneFloorPrice[]
+  raceEntries      RaceEntry[]
+  strikes          Strike[]
+  trustScoreEvents TrustScoreEvent[]
 
   @@map("athletes")
 }
@@ -236,4 +238,32 @@ model Dispute {
 
   @@index([auctionId, status])
   @@map("disputes")
+}
+
+model Strike {
+  id                  String   @id @default(cuid())
+  athleteId           String   @map("athlete_id")
+  reason              String
+  triggeringAuctionId String?  @map("triggering_auction_id")
+  excludedFromCount   Boolean? @map("excluded_from_count")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  athlete Athlete @relation(fields: [athleteId], references: [id])
+
+  @@index([athleteId])
+  @@map("strikes")
+}
+
+model TrustScoreEvent {
+  id        String   @id @default(cuid())
+  athleteId String   @map("athlete_id")
+  oldValue  Int      @map("old_value")
+  newValue  Int      @map("new_value")
+  reason    String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  athlete Athlete @relation(fields: [athleteId], references: [id])
+
+  @@index([athleteId])
+  @@map("trust_score_events")
 }

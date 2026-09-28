@@ -9,6 +9,7 @@ import { BidsModule } from './bids/bids.module.js';
 import { EscrowModule } from './escrow/escrow.module.js';
 import { ProofsModule } from './proofs/proofs.module.js';
 import { DisputesModule } from './disputes/disputes.module.js';
+import { TrustModule } from './trust/trust.module.js';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { DisputesModule } from './disputes/disputes.module.js';
     EscrowModule,
     ProofsModule,
     DisputesModule,
+    TrustModule,
   ],
 })
 export class AppModule {}
