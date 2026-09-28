@@ -96,9 +96,47 @@ model RaceEntry {
   createdAt               DateTime                    @default(now()) @map("created_at")
   updatedAt               DateTime                    @updatedAt @map("updated_at")
 
-  athlete Athlete @relation(fields: [athleteId], references: [id])
-  race    Race    @relation(fields: [raceId], references: [id])
+  athlete  Athlete   @relation(fields: [athleteId], references: [id])
+  race     Race      @relation(fields: [raceId], references: [id])
+  auctions Auction[]
 
   @@unique([athleteId, raceDate])
   @@map("race_entries")
+}
+
+enum AuctionStatus {
+  SCHEDULED
+  OPEN
+  CLOSED
+}
+
+enum AuctionOutcome {
+  PENDING
+  AWAITING_PROOF
+  COMPLETED
+  REFUNDED
+  DISPUTED
+  FORFEITED_FEE
+}
+
+model Auction {
+  id                  String         @id @default(cuid())
+  raceEntryId         String         @map("race_entry_id")
+  zone                BodyZone
+  floorPriceCents     Int            @map("floor_price_cents")
+  openAt              DateTime       @map("open_at")
+  closeAt             DateTime       @map("close_at")
+  status              AuctionStatus  @default(SCHEDULED)
+  outcome             AuctionOutcome @default(PENDING)
+  currentLeadingBidId String?        @map("current_leading_bid_id")
+  commissionCents     Int?           @map("commission_cents")
+  processingFeeCents  Int?           @map("processing_fee_cents")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  raceEntry RaceEntry @relation(fields: [raceEntryId], references: [id])
+
+  @@unique([raceEntryId, zone])
+  @@index([status, openAt, closeAt])
+  @@map("auctions")
 }
