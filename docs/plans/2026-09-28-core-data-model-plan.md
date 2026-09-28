@@ -18,6 +18,8 @@
 - No inline `if` — always braced, body on its own line. Blank line before `if`/`for`/`while`/`return`/`throw` unless first statement in the block.
 - Constructor-injected dependencies are `private readonly`.
 - Money is always `Int` cents in Prisma — never floats.
+- Postgres tables/columns are snake_case: every model has `@@map("plural_snake_case")` and every field whose name differs in casing has `@map("snake_case")`. Prisma model/field names stay camelCase in code. Raw-SQL migration fragments and raw-SQL fixtures reference the mapped snake_case names, never the Prisma names.
+- `*.service.ts` files must not import Prisma enums; where a service compares an enum-valued field, it declares a local string-literal union type instead.
 - Project is native ESM: `package.json` has `"type": "module"`, `tsconfig.json` uses `module`/`moduleResolution`: `NodeNext`. Every relative import (`./foo`, `../foo`) in source and test files must carry an explicit `.js` extension (Node ESM resolution requirement) — package imports (`@nestjs/common`, `@prisma/client`, `vitest`, etc.) are unaffected.
 - NestJS packages pinned to v12 (exact resolved patch version from `package-lock.json`, per the pinning rule above).
 - `*.service.ts`/`*.usecase.ts` files must never import `@prisma/client` — only `*.db.ts` files may. Enforced by `dependency-cruiser`.
@@ -521,16 +523,21 @@ model Athlete {
   id                       String    @id @default(cuid())
   name                     String
   email                    String    @unique
-  isAdult                  Boolean   @default(false)
-  adultAttestedAt          DateTime?
-  trustScore               Int       @default(50)
-  strikeCount              Int       @default(0)
-  isBanned                 Boolean   @default(false)
-  lifetimeSponsorshipCents Int       @default(0)
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  isAdult                  Boolean   @default(false) @map("is_adult")
+  adultAttestedAt          DateTime? @map("adult_attested_at")
+  trustScore               Int       @default(50) @map("trust_score")
+  strikeCount              Int       @default(0) @map("strike_count")
+  isBanned                 Boolean   @default(false) @map("is_banned")
+  lifetimeSponsorshipCents Int       @default(0) @map("lifetime_sponsorship_cents")
+  stripeConnectAccountId   String?   @map("stripe_connect_account_id")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+
+  @@map("athletes")
 }
 ```
+
+`stripeConnectAccountId` holds the athlete's own Stripe Connect account id for payouts (nullable until the athlete completes onboarding), consumed later by HYR-14 — same shape as `Bidder.stripeCustomerId`.
 
 - [ ] **Step 2: Generate and apply the migration**
 
@@ -678,9 +685,11 @@ git commit -m "feat: add BodyZone enum, Athlete model, and athletes module"
 model Bidder {
   id               String   @id @default(cuid())
   email            String   @unique
-  stripeCustomerId String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  stripeCustomerId String?  @map("stripe_customer_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("bidders")
 }
 ```
 
@@ -810,15 +819,16 @@ git commit -m "feat: add Bidder model and bidders module"
 ```prisma
 model ZoneFloorPrice {
   id              String   @id @default(cuid())
-  athleteId       String
+  athleteId       String   @map("athlete_id")
   zone            BodyZone
-  floorPriceCents Int
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  floorPriceCents Int      @map("floor_price_cents")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   athlete Athlete @relation(fields: [athleteId], references: [id])
 
   @@unique([athleteId, zone])
+  @@map("zone_floor_prices")
 }
 ```
 
@@ -840,9 +850,9 @@ Run: `npx prisma migrate dev --name add_zone_floor_price --create-only`
 Prisma's schema DSL has no portable way to express a `CHECK` constraint here, so append raw SQL to the bottom of the generated `prisma/migrations/<timestamp>_add_zone_floor_price/migration.sql`:
 
 ```sql
-ALTER TABLE "ZoneFloorPrice"
+ALTER TABLE "zone_floor_prices"
   ADD CONSTRAINT "floor_price_minimum_1000_cents"
-  CHECK ("floorPriceCents" >= 1000);
+  CHECK ("floor_price_cents" >= 1000);
 ```
 
 - [ ] **Step 4: Apply the migration**
@@ -856,8 +866,8 @@ Run:
 
 ```bash
 npx prisma db execute --stdin <<'EOF'
-INSERT INTO "Athlete" (id, name, email) VALUES ('athlete-test-1', 'Test Athlete', 'test1@example.com');
-INSERT INTO "ZoneFloorPrice" (id, "athleteId", zone, "floorPriceCents", "updatedAt") VALUES ('zfp-test-1', 'athlete-test-1', 'ASS', 500, now());
+INSERT INTO "athletes" (id, name, email) VALUES ('athlete-test-1', 'Test Athlete', 'test1@example.com');
+INSERT INTO "zone_floor_prices" (id, "athlete_id", zone, "floor_price_cents", "updated_at") VALUES ('zfp-test-1', 'athlete-test-1', 'ASS', 500, now());
 EOF
 ```
 
@@ -865,7 +875,7 @@ Expected: fails with a check-constraint violation on `floor_price_minimum_1000_c
 
 ```bash
 npx prisma db execute --stdin <<'EOF'
-DELETE FROM "Athlete" WHERE id = 'athlete-test-1';
+DELETE FROM "athletes" WHERE id = 'athlete-test-1';
 EOF
 ```
 
@@ -1011,10 +1021,12 @@ model Race {
   date      DateTime
   timezone  String
   location  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   raceEntries RaceEntry[]
+
+  @@map("races")
 }
 
 enum RaceEntryVerificationStatus {
@@ -1025,21 +1037,22 @@ enum RaceEntryVerificationStatus {
 
 model RaceEntry {
   id                      String                       @id @default(cuid())
-  athleteId               String
-  raceId                  String
-  bibNumber               String
-  verificationStatus      RaceEntryVerificationStatus  @default(PENDING)
-  verificationDocumentUrl String?
-  verifiedAt              DateTime?
-  verifiedBy              String?
-  raceDate                DateTime
-  createdAt               DateTime                     @default(now())
-  updatedAt               DateTime                     @updatedAt
+  athleteId               String                       @map("athlete_id")
+  raceId                  String                       @map("race_id")
+  bibNumber               String                       @map("bib_number")
+  verificationStatus      RaceEntryVerificationStatus  @default(PENDING) @map("verification_status")
+  verificationDocumentUrl String?                      @map("verification_document_url")
+  verifiedAt              DateTime?                    @map("verified_at")
+  verifiedBy              String?                      @map("verified_by")
+  raceDate                DateTime                     @map("race_date")
+  createdAt               DateTime                     @default(now()) @map("created_at")
+  updatedAt               DateTime                     @updatedAt @map("updated_at")
 
   athlete Athlete @relation(fields: [athleteId], references: [id])
   race    Race    @relation(fields: [raceId], references: [id])
 
   @@unique([athleteId, raceDate])
+  @@map("race_entries")
 }
 ```
 
@@ -1061,11 +1074,11 @@ Expected: applies cleanly, including the `(athleteId, raceDate)` unique index.
 
 ```bash
 npx prisma db execute --stdin <<'EOF'
-INSERT INTO "Athlete" (id, name, email) VALUES ('athlete-test-2', 'Test Athlete Two', 'test2@example.com');
-INSERT INTO "Race" (id, name, date, timezone, location, "updatedAt") VALUES ('race-a', 'Race A', '2026-11-01T08:00:00Z', 'America/Chicago', 'Chicago', now());
-INSERT INTO "Race" (id, name, date, timezone, location, "updatedAt") VALUES ('race-b', 'Race B', '2026-11-01T08:00:00Z', 'America/Chicago', 'Chicago', now());
-INSERT INTO "RaceEntry" (id, "athleteId", "raceId", "bibNumber", "raceDate", "updatedAt") VALUES ('entry-a', 'athlete-test-2', 'race-a', '101', '2026-11-01T08:00:00Z', now());
-INSERT INTO "RaceEntry" (id, "athleteId", "raceId", "bibNumber", "raceDate", "updatedAt") VALUES ('entry-b', 'athlete-test-2', 'race-b', '202', '2026-11-01T08:00:00Z', now());
+INSERT INTO "athletes" (id, name, email) VALUES ('athlete-test-2', 'Test Athlete Two', 'test2@example.com');
+INSERT INTO "races" (id, name, date, timezone, location, "updated_at") VALUES ('race-a', 'Race A', '2026-11-01T08:00:00Z', 'America/Chicago', 'Chicago', now());
+INSERT INTO "races" (id, name, date, timezone, location, "updated_at") VALUES ('race-b', 'Race B', '2026-11-01T08:00:00Z', 'America/Chicago', 'Chicago', now());
+INSERT INTO "race_entries" (id, "athlete_id", "race_id", "bib_number", "race_date", "updated_at") VALUES ('entry-a', 'athlete-test-2', 'race-a', '101', '2026-11-01T08:00:00Z', now());
+INSERT INTO "race_entries" (id, "athlete_id", "race_id", "bib_number", "race_date", "updated_at") VALUES ('entry-b', 'athlete-test-2', 'race-b', '202', '2026-11-01T08:00:00Z', now());
 EOF
 ```
 
@@ -1073,8 +1086,8 @@ Expected: the second `RaceEntry` insert fails on the `athleteId_raceDate` unique
 
 ```bash
 npx prisma db execute --stdin <<'EOF'
-DELETE FROM "Athlete" WHERE id = 'athlete-test-2';
-DELETE FROM "Race" WHERE id IN ('race-a', 'race-b');
+DELETE FROM "athletes" WHERE id = 'athlete-test-2';
+DELETE FROM "races" WHERE id IN ('race-a', 'race-b');
 EOF
 ```
 
@@ -1235,6 +1248,8 @@ export class RaceEntryDb {
 import { Injectable } from '@nestjs/common';
 import { RaceEntryDb } from './race-entry.db.js';
 
+type VerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
+
 @Injectable()
 export class RaceEntryService {
   constructor(private readonly db: RaceEntryDb) {}
@@ -1246,10 +1261,14 @@ export class RaceEntryService {
       return false;
     }
 
-    return entry.verificationStatus === 'VERIFIED';
+    const verificationStatus = entry.verificationStatus as VerificationStatus;
+
+    return verificationStatus === 'VERIFIED';
   }
 }
 ```
+
+`VerificationStatus` is a local literal union mirroring the `RaceEntryVerificationStatus` Prisma enum's members — `race-entry.service.ts` must never import `@prisma/client` (hexagonal split), so it cannot reference the generated enum directly. `race-entry.db.ts` is allowed to return Prisma's own inferred type; the service narrows it explicitly here instead of trusting an implicit `string`.
 
 - [ ] **Step 9: Run both tests to verify they pass**
 
@@ -1321,23 +1340,24 @@ enum AuctionOutcome {
 
 model Auction {
   id                  String         @id @default(cuid())
-  raceEntryId         String
+  raceEntryId         String         @map("race_entry_id")
   zone                BodyZone
-  floorPriceCents     Int
-  openAt              DateTime
-  closeAt             DateTime
+  floorPriceCents     Int            @map("floor_price_cents")
+  openAt              DateTime       @map("open_at")
+  closeAt             DateTime       @map("close_at")
   status              AuctionStatus  @default(SCHEDULED)
   outcome             AuctionOutcome @default(PENDING)
-  currentLeadingBidId String?
-  commissionCents     Int?
-  processingFeeCents  Int?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  currentLeadingBidId String?        @map("current_leading_bid_id")
+  commissionCents     Int?           @map("commission_cents")
+  processingFeeCents  Int?           @map("processing_fee_cents")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
 
   raceEntry RaceEntry @relation(fields: [raceEntryId], references: [id])
 
   @@unique([raceEntryId, zone])
   @@index([status, openAt, closeAt])
+  @@map("auctions")
 }
 ```
 
@@ -1493,10 +1513,10 @@ enum BidStatus {
 
 model Bid {
   id          String    @id @default(cuid())
-  auctionId   String
-  bidderId    String
-  amountCents Int
-  placedAt    DateTime  @default(now())
+  auctionId   String    @map("auction_id")
+  bidderId    String    @map("bidder_id")
+  amountCents Int       @map("amount_cents")
+  placedAt    DateTime  @default(now()) @map("placed_at")
   status      BidStatus @default(LEADING)
 
   auction           Auction @relation("AuctionBids", fields: [auctionId], references: [id])
@@ -1504,6 +1524,7 @@ model Bid {
   leadingForAuction Auction? @relation("AuctionLeadingBid")
 
   @@index([auctionId, status])
+  @@map("bids")
 }
 ```
 
@@ -1512,7 +1533,7 @@ Update `Auction` to add the reverse relations and turn `currentLeadingBidId` int
 ```prisma
 model Auction {
   // ...existing fields...
-  currentLeadingBidId String? @unique
+  currentLeadingBidId String? @unique @map("current_leading_bid_id")
 
   bids              Bid[]  @relation("AuctionBids")
   currentLeadingBid Bid?   @relation("AuctionLeadingBid", fields: [currentLeadingBidId], references: [id])
@@ -1538,7 +1559,7 @@ Prisma's schema DSL has no way to express a filtered/partial unique index, so ap
 
 ```sql
 CREATE UNIQUE INDEX "bid_one_leading_per_auction"
-  ON "Bid" ("auctionId")
+  ON "bids" ("auction_id")
   WHERE "status" = 'LEADING';
 ```
 
@@ -1551,14 +1572,14 @@ Expected: applies cleanly, `Bid` table and the partial index both exist.
 
 ```bash
 npx prisma db execute --stdin <<'EOF'
-INSERT INTO "Athlete" (id, name, email) VALUES ('athlete-test-3', 'Test Athlete Three', 'test3@example.com');
-INSERT INTO "Bidder" (id, email, "updatedAt") VALUES ('bidder-test-1', 'bidder1@example.com', now());
-INSERT INTO "Bidder" (id, email, "updatedAt") VALUES ('bidder-test-2', 'bidder2@example.com', now());
-INSERT INTO "Race" (id, name, date, timezone, location, "updatedAt") VALUES ('race-c', 'Race C', '2026-11-08T08:00:00Z', 'America/Chicago', 'Chicago', now());
-INSERT INTO "RaceEntry" (id, "athleteId", "raceId", "bibNumber", "raceDate", "updatedAt") VALUES ('entry-c', 'athlete-test-3', 'race-c', '303', '2026-11-08T08:00:00Z', now());
-INSERT INTO "Auction" (id, "raceEntryId", zone, "floorPriceCents", "openAt", "closeAt", "updatedAt") VALUES ('auction-c', 'entry-c', 'ASS', 1000, '2026-11-01T08:00:00Z', '2026-11-03T08:00:00Z', now());
-INSERT INTO "Bid" (id, "auctionId", "bidderId", "amountCents", status) VALUES ('bid-c1', 'auction-c', 'bidder-test-1', 1500, 'LEADING');
-INSERT INTO "Bid" (id, "auctionId", "bidderId", "amountCents", status) VALUES ('bid-c2', 'auction-c', 'bidder-test-2', 2000, 'LEADING');
+INSERT INTO "athletes" (id, name, email) VALUES ('athlete-test-3', 'Test Athlete Three', 'test3@example.com');
+INSERT INTO "bidders" (id, email, "updated_at") VALUES ('bidder-test-1', 'bidder1@example.com', now());
+INSERT INTO "bidders" (id, email, "updated_at") VALUES ('bidder-test-2', 'bidder2@example.com', now());
+INSERT INTO "races" (id, name, date, timezone, location, "updated_at") VALUES ('race-c', 'Race C', '2026-11-08T08:00:00Z', 'America/Chicago', 'Chicago', now());
+INSERT INTO "race_entries" (id, "athlete_id", "race_id", "bib_number", "race_date", "updated_at") VALUES ('entry-c', 'athlete-test-3', 'race-c', '303', '2026-11-08T08:00:00Z', now());
+INSERT INTO "auctions" (id, "race_entry_id", zone, "floor_price_cents", "open_at", "close_at", "updated_at") VALUES ('auction-c', 'entry-c', 'ASS', 1000, '2026-11-01T08:00:00Z', '2026-11-03T08:00:00Z', now());
+INSERT INTO "bids" (id, "auction_id", "bidder_id", "amount_cents", status) VALUES ('bid-c1', 'auction-c', 'bidder-test-1', 1500, 'LEADING');
+INSERT INTO "bids" (id, "auction_id", "bidder_id", "amount_cents", status) VALUES ('bid-c2', 'auction-c', 'bidder-test-2', 2000, 'LEADING');
 EOF
 ```
 
@@ -1566,9 +1587,9 @@ Expected: the second `Bid` insert fails on `bid_one_leading_per_auction`. Clean 
 
 ```bash
 npx prisma db execute --stdin <<'EOF'
-DELETE FROM "Athlete" WHERE id = 'athlete-test-3';
-DELETE FROM "Bidder" WHERE id IN ('bidder-test-1', 'bidder-test-2');
-DELETE FROM "Race" WHERE id = 'race-c';
+DELETE FROM "athletes" WHERE id = 'athlete-test-3';
+DELETE FROM "bidders" WHERE id IN ('bidder-test-1', 'bidder-test-2');
+DELETE FROM "races" WHERE id = 'race-c';
 EOF
 ```
 
@@ -1709,15 +1730,16 @@ enum EscrowTransactionType {
 
 model EscrowTransaction {
   id                    String                @id @default(cuid())
-  bidId                 String
-  stripePaymentIntentId String
+  bidId                 String                @map("bid_id")
+  stripePaymentIntentId String                @map("stripe_payment_intent_id")
   type                  EscrowTransactionType
-  amountCents           Int
-  createdAt             DateTime              @default(now())
+  amountCents           Int                   @map("amount_cents")
+  createdAt             DateTime              @default(now()) @map("created_at")
 
   bid Bid @relation(fields: [bidId], references: [id])
 
   @@index([bidId, type])
+  @@map("escrow_transactions")
 }
 ```
 
@@ -1875,15 +1897,17 @@ enum ProofReviewStatus {
 
 model SponsorshipProof {
   id           String            @id @default(cuid())
-  auctionId    String            @unique
-  mediaUrl     String
-  submittedAt  DateTime          @default(now())
+  auctionId    String            @unique @map("auction_id")
+  mediaUrl     String            @map("media_url")
+  submittedAt  DateTime          @default(now()) @map("submitted_at")
   deadline     DateTime
-  reviewStatus ProofReviewStatus @default(PENDING)
-  reviewedBy   String?
-  reviewedAt   DateTime?
+  reviewStatus ProofReviewStatus @default(PENDING) @map("review_status")
+  reviewedBy   String?           @map("reviewed_by")
+  reviewedAt   DateTime?         @map("reviewed_at")
 
   auction Auction @relation(fields: [auctionId], references: [id])
+
+  @@map("sponsorship_proofs")
 }
 
 enum DisputeStatus {
@@ -1895,17 +1919,18 @@ enum DisputeStatus {
 
 model Dispute {
   id              String        @id @default(cuid())
-  auctionId       String
-  raisedBy        String
+  auctionId       String        @map("auction_id")
+  raisedBy        String        @map("raised_by")
   reason          String
   status          DisputeStatus @default(OPEN)
-  resolutionNotes String?
-  createdAt       DateTime      @default(now())
-  resolvedAt      DateTime?
+  resolutionNotes String?       @map("resolution_notes")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  resolvedAt      DateTime?     @map("resolved_at")
 
   auction Auction @relation(fields: [auctionId], references: [id])
 
   @@index([auctionId, status])
+  @@map("disputes")
 }
 ```
 
@@ -2133,28 +2158,30 @@ git commit -m "feat: add SponsorshipProof and Dispute models, proofs and dispute
 ```prisma
 model Strike {
   id                  String   @id @default(cuid())
-  athleteId           String
+  athleteId           String   @map("athlete_id")
   reason              String
-  triggeringAuctionId String?
-  excludedFromCount   Boolean?
-  createdAt           DateTime @default(now())
+  triggeringAuctionId String?  @map("triggering_auction_id")
+  excludedFromCount   Boolean? @map("excluded_from_count")
+  createdAt           DateTime @default(now()) @map("created_at")
 
   athlete Athlete @relation(fields: [athleteId], references: [id])
 
   @@index([athleteId])
+  @@map("strikes")
 }
 
 model TrustScoreEvent {
   id        String   @id @default(cuid())
-  athleteId String
-  oldValue  Int
-  newValue  Int
+  athleteId String   @map("athlete_id")
+  oldValue  Int      @map("old_value")
+  newValue  Int      @map("new_value")
   reason    String
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
 
   athlete Athlete @relation(fields: [athleteId], references: [id])
 
   @@index([athleteId])
+  @@map("trust_score_events")
 }
 ```
 

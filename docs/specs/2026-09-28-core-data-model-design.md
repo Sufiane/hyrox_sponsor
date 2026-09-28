@@ -110,6 +110,8 @@ admin CRUD needed for MVP.
 - `isBanned` Boolean — derived rollup, flips true when active strike count hits 3
 - `lifetimeSponsorshipCents` Int, default 0 — aggregate total for public display,
   updated on auction completion
+- `stripeConnectAccountId` String, nullable — the athlete's own Stripe Connect
+  account id for payouts (null until onboarding; consumed by HYR-14)
 - `createdAt`/`updatedAt`
 
 Auth fields (password hash, etc.) are deliberately deferred to HYR-3 — this row
@@ -250,6 +252,15 @@ exists now purely as the FK target other entities need.
   Prisma `enum`.
 - No generic `deletedAt`/soft-delete for MVP beyond the explicit history tables
   (`Strike`, `TrustScoreEvent`) — see judgment calls below.
+- **Naming**: Postgres tables and columns are snake_case (plural table names,
+  e.g. `athletes`, `zone_floor_prices`), applied via Prisma `@@map`/`@map` on
+  every model and field. Prisma model/field names stay camelCase in code. Raw-SQL
+  migration fragments (the `CHECK` constraint and the partial unique index)
+  reference the mapped snake_case names.
+- **Enum comparisons in services**: `*.service.ts` never imports Prisma enums
+  (hexagonal split); services compare enum-valued fields against a local
+  string-literal union type (e.g. `RaceEntryService` declares
+  `type VerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED'`).
 
 ## 7. Judgment calls made — flagged for coordinator/user confirmation
 
