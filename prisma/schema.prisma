@@ -33,6 +33,8 @@ model Athlete {
   createdAt                DateTime  @default(now()) @map("created_at")
   updatedAt                DateTime  @updatedAt @map("updated_at")
 
+  zoneFloorPrices ZoneFloorPrice[]
+
   @@map("athletes")
 }
 
@@ -44,4 +46,18 @@ model Bidder {
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("bidders")
+}
+
+model ZoneFloorPrice {
+  id              String   @id @default(cuid())
+  athleteId       String   @map("athlete_id")
+  zone            BodyZone
+  floorPriceCents Int      @map("floor_price_cents")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  athlete Athlete @relation(fields: [athleteId], references: [id])
+
+  @@unique([athleteId, zone])
+  @@map("zone_floor_prices")
 }
