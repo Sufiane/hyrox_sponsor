@@ -34,6 +34,7 @@ model Athlete {
   updatedAt                DateTime  @updatedAt @map("updated_at")
 
   zoneFloorPrices ZoneFloorPrice[]
+  raceEntries     RaceEntry[]
 
   @@map("athletes")
 }
@@ -60,4 +61,44 @@ model ZoneFloorPrice {
 
   @@unique([athleteId, zone])
   @@map("zone_floor_prices")
+}
+
+model Race {
+  id        String   @id @default(cuid())
+  name      String
+  date      DateTime
+  timezone  String
+  location  String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  raceEntries RaceEntry[]
+
+  @@map("races")
+}
+
+enum RaceEntryVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model RaceEntry {
+  id                      String                      @id @default(cuid())
+  athleteId               String                      @map("athlete_id")
+  raceId                  String                      @map("race_id")
+  bibNumber               String                      @map("bib_number")
+  verificationStatus      RaceEntryVerificationStatus @default(PENDING) @map("verification_status")
+  verificationDocumentUrl String?                     @map("verification_document_url")
+  verifiedAt              DateTime?                   @map("verified_at")
+  verifiedBy              String?                     @map("verified_by")
+  raceDate                DateTime                    @map("race_date")
+  createdAt               DateTime                    @default(now()) @map("created_at")
+  updatedAt               DateTime                    @updatedAt @map("updated_at")
+
+  athlete Athlete @relation(fields: [athleteId], references: [id])
+  race    Race    @relation(fields: [raceId], references: [id])
+
+  @@unique([athleteId, raceDate])
+  @@map("race_entries")
 }
