@@ -46,6 +46,8 @@ model Bidder {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
+  bids Bid[]
+
   @@map("bidders")
 }
 
@@ -128,15 +130,41 @@ model Auction {
   closeAt             DateTime       @map("close_at")
   status              AuctionStatus  @default(SCHEDULED)
   outcome             AuctionOutcome @default(PENDING)
-  currentLeadingBidId String?        @map("current_leading_bid_id")
+  currentLeadingBidId String?        @unique @map("current_leading_bid_id")
   commissionCents     Int?           @map("commission_cents")
   processingFeeCents  Int?           @map("processing_fee_cents")
   createdAt           DateTime       @default(now()) @map("created_at")
   updatedAt           DateTime       @updatedAt @map("updated_at")
 
-  raceEntry RaceEntry @relation(fields: [raceEntryId], references: [id])
+  raceEntry         RaceEntry @relation(fields: [raceEntryId], references: [id])
+  bids              Bid[]     @relation("AuctionBids")
+  currentLeadingBid Bid?      @relation("AuctionLeadingBid", fields: [currentLeadingBidId], references: [id])
 
   @@unique([raceEntryId, zone])
   @@index([status, openAt, closeAt])
   @@map("auctions")
+}
+
+enum BidStatus {
+  LEADING
+  OUTBID
+  WITHDRAWN
+  WON
+  LOST
+}
+
+model Bid {
+  id          String    @id @default(cuid())
+  auctionId   String    @map("auction_id")
+  bidderId    String    @map("bidder_id")
+  amountCents Int       @map("amount_cents")
+  placedAt    DateTime  @default(now()) @map("placed_at")
+  status      BidStatus @default(LEADING)
+
+  auction           Auction  @relation("AuctionBids", fields: [auctionId], references: [id])
+  bidder            Bidder   @relation(fields: [bidderId], references: [id])
+  leadingForAuction Auction? @relation("AuctionLeadingBid")
+
+  @@index([auctionId, status])
+  @@map("bids")
 }

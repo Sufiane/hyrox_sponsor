@@ -5,8 +5,17 @@ import { BiddersModule } from './bidders/bidders.module.js';
 import { ZonesModule } from './zones/zones.module.js';
 import { RacesModule } from './races/races.module.js';
 import { AuctionsModule } from './auctions/auctions.module.js';
+import { BidsModule } from './bids/bids.module.js';
 
 @Module({
-  imports: [PrismaModule, AthletesModule, BiddersModule, ZonesModule, RacesModule, AuctionsModule],
+  imports: [
+    PrismaModule,
+    AthletesModule,
+    BiddersModule,
+    ZonesModule,
+    RacesModule,
+    AuctionsModule,
+    BidsModule,
+  ],
 })
 export class AppModule {}
