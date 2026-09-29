@@ -21,14 +21,17 @@
 - Postgres tables/columns are snake_case: every model has `@@map("plural_snake_case")` and every field whose name differs in casing has `@map("snake_case")`. Prisma model/field names stay camelCase in code. Raw-SQL migration fragments and raw-SQL fixtures reference the mapped snake_case names, never the Prisma names.
 - Every `DateTime` column is `@db.Timestamptz(3)` (Postgres `timestamp with time zone`); never bare `timestamp`. The one exception is `RaceEntry.raceLocalDate`, which is `@db.Date`.
 - Every Prisma `enum` has `@@map("snake_case_name")` (e.g. `BodyZone` -> `body_zone`); raw SQL that casts to or references an enum type uses the mapped name.
-- `*.service.ts` files must not import Prisma enums; where a service compares an enum-valued field, it declares a local string-literal union type instead.
+- `*.service.ts` files must not import Prisma enums; where a service compares an enum-valued field, it declares a local `as const` object (not a TS enum, no cast) and compares against its members.
 - Project is native ESM: `package.json` has `"type": "module"`, `tsconfig.json` uses `module`/`moduleResolution`: `NodeNext`. Every relative import (`./foo`, `../foo`) in source and test files must carry an explicit `.js` extension (Node ESM resolution requirement) — package imports (`@nestjs/common`, `@prisma/client`, `vitest`, etc.) are unaffected.
 - NestJS packages pinned to v12 (exact resolved patch version from `package-lock.json`, per the pinning rule above).
 - `*.service.ts`/`*.usecase.ts` files must never import `@prisma/client` — only `*.db.ts` files may. Enforced by `dependency-cruiser`.
-- Migration history was regenerated as a single `init` migration (from empty) plus the hand-written CHECK constraint and partial unique index appended with `-- Hand-written` comments; per-task `migrate dev` steps below describe how each model was introduced.
 - Both `*Service` and `*Db` are registered as providers in their module (CLAUDE.md example shape).
 - Delete dead code rather than commenting it out. No comments restating what the code already says.
 - Comments only for genuinely non-obvious "why" — most tasks in this plan need none.
+
+## Migration history note
+
+The repo has a single init migration, `prisma/migrations/20260929090000_init`, containing the hand-written `CHECK` constraint (floor price) and partial unique index (one leading bid per auction) appended with `-- Hand-written` comments. The schema changes introduced by Tasks 4-12 were applied into this one migration rather than kept as per-task migrations. To regenerate it: delete `prisma/migrations/20260929090000_init`, run `npx prisma migrate dev --name init --create-only` against an empty database, re-append the hand-written SQL, then `npx prisma migrate dev`. Task steps below that mention migrations refer to this note.
 
 ---
 
@@ -123,7 +126,7 @@ src/
 ```bash
 npm init -y
 npm install @nestjs/common@12 @nestjs/core@12 @nestjs/platform-express@12 reflect-metadata rxjs
-npm install -D typescript @types/node @types/express @nestjs/cli@12 @nestjs/schematics@12 @nestjs/testing@12 vitest eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser
+npm install -D typescript @types/node@24 @types/express @nestjs/cli@12 @nestjs/schematics@12 @nestjs/testing@12 vitest eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser
 ```
 
 - [ ] **Step 2: Pin every dependency to its resolved version and mark the package as ESM**
@@ -144,8 +147,8 @@ Read the resolved versions out of the generated `package-lock.json` and rewrite 
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "target": "ES2022",
-    "lib": ["ES2022"],
+    "target": "ES2023",
+    "lib": ["ES2023"],
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
@@ -155,8 +158,7 @@ Read the resolved versions out of the generated `package-lock.json` and rewrite 
     "strict": true,
     "skipLibCheck": true,
     "outDir": "./dist",
-    "baseUrl": "./",
-    "types": ["vitest/globals"]
+    "types": ["node", "vitest/globals"]
   }
 }
 ```
@@ -166,6 +168,10 @@ Read the resolved versions out of the generated `package-lock.json` and rewrite 
 ```json
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src"
+  },
+  "include": ["src"],
   "exclude": ["node_modules", "dist", "**/*spec.ts"]
 }
 ```
@@ -222,7 +228,7 @@ export default defineConfig({
 });
 ```
 
-`globals: true` makes `describe`/`it`/`expect`/`vi` available in every spec file without an explicit import, matching the mocking style (`vi.fn()`) used throughout this plan. The `types: ["vitest/globals"]` entry added to `tsconfig.json` in Step 3 is what makes TypeScript recognize those globals.
+`globals: true` makes `describe`/`it`/`expect`/`vi` available in every spec file without an explicit import, matching the mocking style (`vi.fn()`) used throughout this plan. The `"vitest/globals"` entry in `types` (alongside `"node"`) added to `tsconfig.json` in Step 3 is what makes TypeScript recognize those globals.
 
 - [ ] **Step 8: Add minimal `src/app.module.ts` and `src/main.ts`**
 
@@ -238,15 +244,21 @@ export class AppModule {}
 
 ```typescript
 // src/main.ts
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
+
+  app.enableShutdownHooks();
   await app.listen(3000);
 }
 
-bootstrap();
+bootstrap().catch((error: unknown) => {
+  new Logger('Bootstrap').error(error instanceof Error ? error.stack : String(error));
+  process.exit(1);
+});
 ```
 
 - [ ] **Step 9: Add npm scripts to `package.json`**
@@ -255,6 +267,7 @@ bootstrap();
 {
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "vitest run"
   }
@@ -544,10 +557,10 @@ model Athlete {
 
 `stripeConnectAccountId` holds the athlete's own Stripe Connect account id for payouts (nullable until the athlete completes onboarding), consumed later by HYR-14 — same shape as `Bidder.stripeCustomerId`.
 
-- [ ] **Step 2: Generate and apply the migration**
+- [ ] **Step 2: Migration**
 
-Run: `npx prisma migrate dev --name add_athlete`
-Expected: creates `prisma/migrations/<timestamp>_add_athlete/migration.sql`, applies cleanly against the local Postgres from Task 2, regenerates the Prisma client.
+Run: none. schema changes for this task live in the single init migration (see the Migration history note near the top); regenerate it with the documented procedure.
+Expected: the schema for this task is present in `20260929090000_init`.
 
 - [ ] **Step 3: Write the failing service test**
 
@@ -682,7 +695,7 @@ git commit -m "feat: add BodyZone enum, Athlete model, and athletes module"
 
 **Interfaces:**
 - Consumes: nothing from other modules.
-- Produces: `BidderDb.findByEmail(email: string): Promise<Bidder | null>`, `BidderDb.upsertByEmail(email: string): Promise<Bidder>`, `BidderService.getOrCreateByEmail(email: string): Promise<Bidder>`. Later `Bid` model FKs to `Bidder.id`.
+- Produces: `BidderDb.findByEmail(email: string): Promise<Bidder | null>`, `BidderDb.upsertByEmail(email: string): Promise<Bidder>`, `BidderService.getOrCreateByEmail(email: string): Promise<Bidder>` (trims and lowercases the email before the upsert; `BidderDb.findByEmail` normalisation deferred to HYR-3). Later `Bid` model FKs to `Bidder.id`.
 
 - [ ] **Step 1: Add `Bidder` model to `prisma/schema.prisma`**
 
@@ -698,10 +711,10 @@ model Bidder {
 }
 ```
 
-- [ ] **Step 2: Generate and apply the migration**
+- [ ] **Step 2: Migration**
 
-Run: `npx prisma migrate dev --name add_bidder`
-Expected: applies cleanly.
+Run: none. schema changes for this task live in the single init migration (see the Migration history note near the top); regenerate it with the documented procedure.
+Expected: the schema for this task is present in `20260929090000_init`.
 
 - [ ] **Step 3: Write the failing service test**
 
@@ -712,15 +725,28 @@ import { BidderDb } from './bidder.db.js';
 
 describe('BidderService', () => {
   describe('getOrCreateByEmail', () => {
-    it('delegates to the db upsert and returns the bidder', async () => {
-      const bidder = { id: 'bidder-1', email: 'brand@example.com' };
-      const db = { upsertByEmail: vi.fn().mockResolvedValue(bidder) } as unknown as BidderDb;
-      const service = new BidderService(db);
+    describe('when the email is already normalised', () => {
+      it('upserts it unchanged and returns the bidder', async () => {
+        const bidder = { id: 'bidder-1', email: 'brand@example.com' };
+        const db = { upsertByEmail: vi.fn().mockResolvedValue(bidder) } as unknown as BidderDb;
+        const service = new BidderService(db);
 
-      const result = await service.getOrCreateByEmail('brand@example.com');
+        const result = await service.getOrCreateByEmail('brand@example.com');
 
-      expect(db.upsertByEmail).toHaveBeenCalledWith('brand@example.com');
-      expect(result).toEqual(bidder);
+        expect(db.upsertByEmail).toHaveBeenCalledWith('brand@example.com');
+        expect(result).toEqual(bidder);
+      });
+    });
+
+    describe('when the email has mixed case and surrounding whitespace', () => {
+      it('upserts the trimmed lowercase email', async () => {
+        const db = { upsertByEmail: vi.fn().mockResolvedValue({}) } as unknown as BidderDb;
+        const service = new BidderService(db);
+
+        await service.getOrCreateByEmail('  Jamie@Example.COM ');
+
+        expect(db.upsertByEmail).toHaveBeenCalledWith('jamie@example.com');
+      });
     });
   });
 });
@@ -760,15 +786,16 @@ export class BidderDb {
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { Bidder } from '@prisma/client';
 import { BidderDb } from './bidder.db.js';
+
+type BidderRecord = Awaited<ReturnType<BidderDb['upsertByEmail']>>;
 
 @Injectable()
 export class BidderService {
   constructor(private readonly db: BidderDb) {}
 
-  getOrCreateByEmail(email: string): Promise<Bidder> {
-    return this.db.upsertByEmail(email);
+  getOrCreateByEmail(email: string): Promise<BidderRecord> {
+    return this.db.upsertByEmail(email.trim().toLowerCase());
   }
 }
 ```
@@ -846,13 +873,13 @@ model Athlete {
 }
 ```
 
-- [ ] **Step 2: Generate the migration**
+- [ ] **Step 2: Migration**
 
-Run: `npx prisma migrate dev --name add_zone_floor_price --create-only`
+Schema changes for this task live in the single init migration (see the Migration history note near the top); regenerate it with the documented procedure.
 
-- [ ] **Step 3: Hand-edit the generated migration to add the $10 minimum check constraint**
+- [ ] **Step 3: Hand-written SQL in the init migration for the $10 minimum check constraint**
 
-Prisma's schema DSL has no portable way to express a `CHECK` constraint here, so append raw SQL to the bottom of the generated `prisma/migrations/<timestamp>_add_zone_floor_price/migration.sql`:
+Prisma's schema DSL has no portable way to express a `CHECK` constraint here, so the raw SQL is appended to the bottom of `prisma/migrations/20260929090000_init/migration.sql`:
 
 ```sql
 ALTER TABLE "zone_floor_prices"
@@ -862,7 +889,7 @@ ALTER TABLE "zone_floor_prices"
 
 - [ ] **Step 4: Apply the migration**
 
-Run: `npx prisma migrate dev`
+Run: schema changes for this task live in the single init migration (see the Migration history note near the top); regenerate it with the documented procedure.
 Expected: applies cleanly, regenerates the client.
 
 - [ ] **Step 5: Verify the check constraint is enforced at the DB level**
@@ -1074,10 +1101,10 @@ model Athlete {
 }
 ```
 
-- [ ] **Step 2: Generate and apply the migration**
+- [ ] **Step 2: Migration**
 
-Run: `npx prisma migrate dev --name add_race_and_race_entry`
-Expected: applies cleanly, including the `(athleteId, raceLocalDate)` unique index and the `raceId` index. `raceLocalDate` is `@db.Date`: the race's calendar date in `Race.timezone`, computed by the application at entry-creation time (no creation code in this ticket) and stored alongside the immutable `raceDate` instant.
+Run: none. schema changes for this task live in the single init migration (see the Migration history note near the top); regenerate it with the documented procedure.
+Expected: the schema for this task is present in `20260929090000_init`.
 
 - [ ] **Step 3: Verify the same-day double-entry constraint at the DB level**
 
@@ -1258,7 +1285,11 @@ export class RaceEntryDb {
 import { Injectable } from '@nestjs/common';
 import { RaceEntryDb } from './race-entry.db.js';
 
-type VerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
+const VERIFICATION_STATUS = {
+  PENDING: 'PENDING',
+  VERIFIED: 'VERIFIED',
+  REJECTED: 'REJECTED',
+} as const;
 
 @Injectable()
 export class RaceEntryService {
@@ -1271,14 +1302,12 @@ export class RaceEntryService {
       return false;
     }
 
-    const verificationStatus = entry.verificationStatus as VerificationStatus;
-
-    return verificationStatus === 'VERIFIED';
+    return entry.verificationStatus === VERIFICATION_STATUS.VERIFIED;
   }
 }
 ```
 
-`VerificationStatus` is a local literal union mirroring the `RaceEntryVerificationStatus` Prisma enum's members — `race-entry.service.ts` must never import `@prisma/client` (hexagonal split), so it cannot reference the generated enum directly. `race-entry.db.ts` is allowed to return Prisma's own inferred type; the service narrows it explicitly here instead of trusting an implicit `string`.
+`VERIFICATION_STATUS` is a local `as const` object mirroring the `RaceEntryVerificationStatus` Prisma enum's members — `race-entry.service.ts` must never import `@prisma/client` (hexagonal split), so it cannot reference the generated enum. It is not a TS enum and needs no cast: the comparison type-checks directly against the Prisma-inferred string-union field.
 
 - [ ] **Step 9: Run both tests to verify they pass**
 
@@ -1385,10 +1414,10 @@ model RaceEntry {
 }
 ```
 
-- [ ] **Step 2: Generate and apply the migration**
+- [ ] **Step 2: Migration**
 
-Run: `npx prisma migrate dev --name add_auction`
-Expected: applies cleanly.
+Run: none. schema changes for this task live in the single init migration (see the Migration history note near the top); regenerate it with the documented procedure.
+Expected: the schema for this task is present in `20260929090000_init`.
 
 - [ ] **Step 3: Write the failing service test**
 
@@ -1567,13 +1596,13 @@ model Bidder {
 }
 ```
 
-- [ ] **Step 2: Generate the migration without applying it yet**
+- [ ] **Step 2: Migration**
 
-Run: `npx prisma migrate dev --name add_bid --create-only`
+Schema changes for this task live in the single init migration (see the Migration history note near the top); regenerate it with the documented procedure.
 
-- [ ] **Step 3: Hand-edit the generated migration to add the partial unique index**
+- [ ] **Step 3: Hand-written SQL in the init migration for the partial unique index**
 
-Prisma's schema DSL has no way to express a filtered/partial unique index, so append raw SQL to the bottom of `prisma/migrations/<timestamp>_add_bid/migration.sql`:
+Prisma's schema DSL has no way to express a filtered/partial unique index, so the raw SQL is appended to the bottom of `prisma/migrations/20260929090000_init/migration.sql`:
 
 ```sql
 CREATE UNIQUE INDEX "bid_one_leading_per_auction"
@@ -1583,7 +1612,7 @@ CREATE UNIQUE INDEX "bid_one_leading_per_auction"
 
 - [ ] **Step 4: Apply the migration**
 
-Run: `npx prisma migrate dev`
+Run: schema changes for this task live in the single init migration (see the Migration history note near the top); regenerate it with the documented procedure.
 Expected: applies cleanly, `Bid` table and the partial index both exist.
 
 - [ ] **Step 5: Verify the partial unique index rejects two leading bids on the same auction**
@@ -1772,10 +1801,10 @@ model Bid {
 }
 ```
 
-- [ ] **Step 2: Generate and apply the migration**
+- [ ] **Step 2: Migration**
 
-Run: `npx prisma migrate dev --name add_escrow_transaction`
-Expected: applies cleanly.
+Run: none. schema changes for this task live in the single init migration (see the Migration history note near the top); regenerate it with the documented procedure.
+Expected: the schema for this task is present in `20260929090000_init`.
 
 - [ ] **Step 3: Write the failing service test**
 
@@ -1904,7 +1933,7 @@ git commit -m "feat: add EscrowTransaction audit-log model, escrow module"
 
 **Interfaces:**
 - Consumes: `Auction` model (Task 8).
-- Produces: `SponsorshipProofDb.findByAuctionId(auctionId: string): Promise<SponsorshipProof | null>`, `SponsorshipProofService.getByAuctionId(auctionId: string): Promise<SponsorshipProof | null>`; `DisputeDb.findOpenForAuction(auctionId: string): Promise<Dispute | null>`, `DisputeService.hasOpenDispute(auctionId: string): Promise<boolean>`.
+- Produces: `SponsorshipProofDb.findByAuctionId(auctionId: string): Promise<SponsorshipProof | null>`, `SponsorshipProofService.getByAuctionId(auctionId: string): Promise<SponsorshipProof | null>`; `DisputeDb.findOpenForAuction(auctionId: string): Promise<Dispute | null>` (matches `OPEN` and `ARBITRATION` disputes), `DisputeService.hasOpenDispute(auctionId: string): Promise<boolean>` (true for OPEN or ARBITRATION).
 
 - [ ] **Step 1: Add `SponsorshipProof` and `Dispute` models to `prisma/schema.prisma`**
 
@@ -1967,10 +1996,10 @@ model Auction {
 }
 ```
 
-- [ ] **Step 2: Generate and apply the migration**
+- [ ] **Step 2: Migration**
 
-Run: `npx prisma migrate dev --name add_sponsorship_proof_and_dispute`
-Expected: applies cleanly.
+Run: none. schema changes for this task live in the single init migration (see the Migration history note near the top); regenerate it with the documented procedure.
+Expected: the schema for this task is present in `20260929090000_init`.
 
 - [ ] **Step 3: Write the failing `SponsorshipProofService` test**
 
@@ -2029,7 +2058,20 @@ describe('DisputeService', () => {
       });
     });
 
-    describe('when no OPEN dispute exists for the auction', () => {
+    describe('when an ARBITRATION dispute exists for the auction', () => {
+      it('returns true', async () => {
+        const db = {
+          findOpenForAuction: vi.fn().mockResolvedValue({ id: 'dispute-2', status: 'ARBITRATION' }),
+        } as unknown as DisputeDb;
+        const service = new DisputeService(db);
+
+        const result = await service.hasOpenDispute('auction-1');
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('when no open dispute exists for the auction', () => {
       it('returns false', async () => {
         const db = { findOpenForAuction: vi.fn().mockResolvedValue(null) } as unknown as DisputeDb;
         const service = new DisputeService(db);
@@ -2095,7 +2137,7 @@ export class DisputeDb {
   constructor(private readonly prisma: PrismaService) {}
 
   findOpenForAuction(auctionId: string): Promise<Dispute | null> {
-    return this.prisma.dispute.findFirst({ where: { auctionId, status: 'OPEN' } });
+    return this.prisma.dispute.findFirst({ where: { auctionId, status: { in: ['OPEN', 'ARBITRATION'] } } });
   }
 }
 ```
@@ -2221,10 +2263,10 @@ model Athlete {
 }
 ```
 
-- [ ] **Step 2: Generate and apply the migration**
+- [ ] **Step 2: Migration**
 
-Run: `npx prisma migrate dev --name add_strike_and_trust_score_event`
-Expected: applies cleanly.
+Run: none. schema changes for this task live in the single init migration (see the Migration history note near the top); regenerate it with the documented procedure.
+Expected: the schema for this task is present in `20260929090000_init`.
 
 - [ ] **Step 3: Write the failing service test**
 
@@ -2437,7 +2479,7 @@ export class AppModule {}
 - [ ] **Step 2: Full clean-slate migration check**
 
 Run: `docker compose down -v && docker compose up -d postgres && sleep 2 && npx prisma migrate deploy`
-Expected: every migration from Tasks 4-12 applies in order against a fresh database with no errors — this proves the migration history is self-consistent end to end, not just incrementally correct.
+Expected: the single init migration (`20260929090000_init`) applies against a fresh database with no errors, including the hand-written CHECK and partial unique index.
 
 - [ ] **Step 3: Full verification pass**
 
@@ -2464,7 +2506,7 @@ for the data model design.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/app.module.ts README.md
+git add src/app.module.ts README.md prisma/migrations
 git commit -m "chore: finalize module wiring, verify full migration/test suite, add README"
 ```
 
@@ -2474,4 +2516,5 @@ git commit -m "chore: finalize module wiring, verify full migration/test suite, 
 
 - **Spec coverage:** every entity in spec section 5 (BodyZone, Athlete, Bidder, ZoneFloorPrice, Race, RaceEntry, Auction, Bid, EscrowTransaction, SponsorshipProof, Dispute, Strike, TrustScoreEvent) has a task. The partial unique leading-bid index, the $10 floor-price check constraint, the same-day RaceEntry unique index on `(athleteId, raceLocalDate)`, `status`/`outcome` split on Auction, and `commissionCents`/`processingFeeCents` are all present. dependency-cruiser enforcement (coordinator addition) is Task 3. Stack scaffold and migration mechanics are Tasks 1-2 and 13.
 - **Out of scope confirmed absent:** no controllers, no Stripe SDK calls, no auth, no bid-placement/increment-validation logic, no scheduling job, no row-locking transaction code (explicitly deferred per spec section 7, item 11) — matches spec section 8.
+- **Deferred:** `BidderDb.findByEmail` and athlete email normalisation go to HYR-3; HYR-5 must compute `raceLocalDate` with one shared timezone-aware helper, unit-tested near midnight, stored as a UTC-midnight `Date`.
 - **Type consistency:** `AthleteDb`/`AthleteService`, `BidderDb`/`BidderService`, etc. method names and signatures used in later "Consumes" blocks match the "Produces" blocks of the tasks that define them.

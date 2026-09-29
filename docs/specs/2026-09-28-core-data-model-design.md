@@ -252,7 +252,9 @@ exists now purely as the FK target other entities need.
 ## 6. Migrations & constraints summary
 
 - Prisma schema + `prisma migrate dev` locally, `prisma migrate deploy` in
-  CI/prod. Standard migration history in `prisma/migrations/`.
+  CI/prod. Migration history in `prisma/migrations/` is a single
+  `20260929090000_init` migration (including the hand-written CHECK constraint
+  and partial unique index).
 - Unique constraints: `ZoneFloorPrice(athleteId, zone)`,
   `Auction(raceEntryId, zone)`, `RaceEntry(athleteId, raceLocalDate)`,
   `SponsorshipProof(auctionId)`, `Bidder(email)`.
@@ -275,9 +277,10 @@ exists now purely as the FK target other entities need.
   migration fragments (the `CHECK` constraint and the partial unique index)
   reference the mapped snake_case names.
 - **Enum comparisons in services**: `*.service.ts` never imports Prisma enums
-  (hexagonal split); services compare enum-valued fields against a local
-  string-literal union type (e.g. `RaceEntryService` declares
-  `type VerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED'`).
+  (hexagonal split); where a service compares an enum-valued field it declares a
+  local `as const` object (not a TS enum, no cast), e.g. `RaceEntryService`
+  declares `const VERIFICATION_STATUS = { PENDING: 'PENDING', VERIFIED: 'VERIFIED', REJECTED: 'REJECTED' } as const;`
+  and compares against `VERIFICATION_STATUS.VERIFIED`.
 
 ## 7. Judgment calls made — flagged for coordinator/user confirmation
 
@@ -330,6 +333,11 @@ implementation starts:
 ## 8. Explicitly out of scope for HYR-2
 
 - Any authentication (athlete signup/login — HYR-3).
+- Deferred to HYR-3: `BidderDb.findByEmail` normalisation and athlete email
+  normalisation (`BidderService.getOrCreateByEmail` already trims and lowercases).
+- Deferred to HYR-5: `raceLocalDate` must be computed with one shared
+  timezone-aware helper, unit-tested near midnight, and stored as a UTC-midnight
+  `Date`.
 - Guest bidder checkout flow itself (HYR-4) — only the `Bidder` entity exists.
 - Race results ingestion/logging flow (HYR-5) — only the `Race` entity exists.
 - Bib verification review UI/flow (HYR-6) — only the `RaceEntry` gate field
