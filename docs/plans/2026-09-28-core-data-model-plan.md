@@ -19,10 +19,13 @@
 - Constructor-injected dependencies are `private readonly`.
 - Money is always `Int` cents in Prisma — never floats.
 - Postgres tables/columns are snake_case: every model has `@@map("plural_snake_case")` and every field whose name differs in casing has `@map("snake_case")`. Prisma model/field names stay camelCase in code. Raw-SQL migration fragments and raw-SQL fixtures reference the mapped snake_case names, never the Prisma names.
+- Every `DateTime` column is `@db.Timestamptz(3)` (Postgres `timestamp with time zone`); never bare `timestamp`. The one exception is `RaceEntry.raceLocalDate`, which is `@db.Date`.
+- Every Prisma `enum` has `@@map("snake_case_name")` (e.g. `BodyZone` -> `body_zone`); raw SQL that casts to or references an enum type uses the mapped name.
 - `*.service.ts` files must not import Prisma enums; where a service compares an enum-valued field, it declares a local string-literal union type instead.
 - Project is native ESM: `package.json` has `"type": "module"`, `tsconfig.json` uses `module`/`moduleResolution`: `NodeNext`. Every relative import (`./foo`, `../foo`) in source and test files must carry an explicit `.js` extension (Node ESM resolution requirement) — package imports (`@nestjs/common`, `@prisma/client`, `vitest`, etc.) are unaffected.
 - NestJS packages pinned to v12 (exact resolved patch version from `package-lock.json`, per the pinning rule above).
 - `*.service.ts`/`*.usecase.ts` files must never import `@prisma/client` — only `*.db.ts` files may. Enforced by `dependency-cruiser`.
+- Migration history was regenerated as a single `init` migration (from empty) plus the hand-written CHECK constraint and partial unique index appended with `-- Hand-written` comments; per-task `migrate dev` steps below describe how each model was introduced.
 - Both `*Service` and `*Db` are registered as providers in their module (CLAUDE.md example shape).
 - Delete dead code rather than commenting it out. No comments restating what the code already says.
 - Comments only for genuinely non-obvious "why" — most tasks in this plan need none.
@@ -517,6 +520,8 @@ enum BodyZone {
   LEFT_THIGH
   RIGHT_THIGH
   ASS
+
+  @@map("body_zone")
 }
 
 model Athlete {
@@ -524,14 +529,14 @@ model Athlete {
   name                     String
   email                    String    @unique
   isAdult                  Boolean   @default(false) @map("is_adult")
-  adultAttestedAt          DateTime? @map("adult_attested_at")
+  adultAttestedAt          DateTime? @map("adult_attested_at") @db.Timestamptz(3)
   trustScore               Int       @default(50) @map("trust_score")
   strikeCount              Int       @default(0) @map("strike_count")
   isBanned                 Boolean   @default(false) @map("is_banned")
   lifetimeSponsorshipCents Int       @default(0) @map("lifetime_sponsorship_cents")
   stripeConnectAccountId   String?   @map("stripe_connect_account_id")
-  createdAt                DateTime  @default(now()) @map("created_at")
-  updatedAt                DateTime  @updatedAt @map("updated_at")
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("athletes")
 }
@@ -686,8 +691,8 @@ model Bidder {
   id               String   @id @default(cuid())
   email            String   @unique
   stripeCustomerId String?  @map("stripe_customer_id")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("bidders")
 }
@@ -822,8 +827,8 @@ model ZoneFloorPrice {
   athleteId       String   @map("athlete_id")
   zone            BodyZone
   floorPriceCents Int      @map("floor_price_cents")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   athlete Athlete @relation(fields: [athleteId], references: [id])
 
@@ -1021,8 +1026,8 @@ model Race {
   date      DateTime
   timezone  String
   location  String
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   raceEntries RaceEntry[]
 
@@ -1033,6 +1038,8 @@ enum RaceEntryVerificationStatus {
   PENDING
   VERIFIED
   REJECTED
+
+  @@map("race_entry_verification_status")
 }
 
 model RaceEntry {
@@ -1042,16 +1049,18 @@ model RaceEntry {
   bibNumber               String                       @map("bib_number")
   verificationStatus      RaceEntryVerificationStatus  @default(PENDING) @map("verification_status")
   verificationDocumentUrl String?                      @map("verification_document_url")
-  verifiedAt              DateTime?                    @map("verified_at")
+  verifiedAt              DateTime?                    @map("verified_at") @db.Timestamptz(3)
   verifiedBy              String?                      @map("verified_by")
-  raceDate                DateTime                     @map("race_date")
-  createdAt               DateTime                     @default(now()) @map("created_at")
-  updatedAt               DateTime                     @updatedAt @map("updated_at")
+  raceDate                DateTime                     @map("race_date") @db.Timestamptz(3)
+  raceLocalDate           DateTime                     @map("race_local_date") @db.Date
+  createdAt               DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   athlete Athlete @relation(fields: [athleteId], references: [id])
   race    Race    @relation(fields: [raceId], references: [id])
 
-  @@unique([athleteId, raceDate])
+  @@unique([athleteId, raceLocalDate])
+  @@index([raceId])
   @@map("race_entries")
 }
 ```
@@ -1068,24 +1077,25 @@ model Athlete {
 - [ ] **Step 2: Generate and apply the migration**
 
 Run: `npx prisma migrate dev --name add_race_and_race_entry`
-Expected: applies cleanly, including the `(athleteId, raceDate)` unique index.
+Expected: applies cleanly, including the `(athleteId, raceLocalDate)` unique index and the `raceId` index. `raceLocalDate` is `@db.Date`: the race's calendar date in `Race.timezone`, computed by the application at entry-creation time (no creation code in this ticket) and stored alongside the immutable `raceDate` instant.
 
 - [ ] **Step 3: Verify the same-day double-entry constraint at the DB level**
 
 ```bash
-npx prisma db execute --stdin <<'EOF'
-INSERT INTO "athletes" (id, name, email) VALUES ('athlete-test-2', 'Test Athlete Two', 'test2@example.com');
-INSERT INTO "races" (id, name, date, timezone, location, "updated_at") VALUES ('race-a', 'Race A', '2026-11-01T08:00:00Z', 'America/Chicago', 'Chicago', now());
-INSERT INTO "races" (id, name, date, timezone, location, "updated_at") VALUES ('race-b', 'Race B', '2026-11-01T08:00:00Z', 'America/Chicago', 'Chicago', now());
-INSERT INTO "race_entries" (id, "athlete_id", "race_id", "bib_number", "race_date", "updated_at") VALUES ('entry-a', 'athlete-test-2', 'race-a', '101', '2026-11-01T08:00:00Z', now());
-INSERT INTO "race_entries" (id, "athlete_id", "race_id", "bib_number", "race_date", "updated_at") VALUES ('entry-b', 'athlete-test-2', 'race-b', '202', '2026-11-01T08:00:00Z', now());
+npx prisma db execute --schema prisma/schema.prisma --stdin <<'EOF'
+INSERT INTO "athletes" (id, name, email, "updated_at") VALUES ('athlete-test-2', 'Test Athlete Two', 'test2@example.com', now());
+INSERT INTO "races" (id, name, date, timezone, location, "updated_at") VALUES ('race-a', 'Race A', '2026-11-01T08:00:00Z', 'Europe/Paris', 'Paris', now());
+INSERT INTO "races" (id, name, date, timezone, location, "updated_at") VALUES ('race-b', 'Race B', '2026-11-01T15:30:00Z', 'Europe/Paris', 'Paris', now());
+INSERT INTO "race_entries" (id, "athlete_id", "race_id", "bib_number", "race_date", "race_local_date", "updated_at") VALUES ('entry-a', 'athlete-test-2', 'race-a', '101', '2026-11-01T08:00:00Z', '2026-11-01', now());
+INSERT INTO "race_entries" (id, "athlete_id", "race_id", "bib_number", "race_date", "race_local_date", "updated_at") VALUES ('entry-b', 'athlete-test-2', 'race-b', '202', '2026-11-01T15:30:00Z', '2026-11-01', now());
 EOF
 ```
 
-Expected: the second `RaceEntry` insert fails on the `athleteId_raceDate` unique constraint (same date, different race). Clean up:
+Expected: the second `RaceEntry` insert fails on the `race_entries_athlete_id_race_local_date_key` unique constraint: the two entries have different `race_date` instants (08:00Z vs 15:30Z) and different races, but the same `race_local_date`. Clean up:
 
 ```bash
-npx prisma db execute --stdin <<'EOF'
+npx prisma db execute --schema prisma/schema.prisma --stdin <<'EOF'
+DELETE FROM "race_entries" WHERE "athlete_id" = 'athlete-test-2';
 DELETE FROM "athletes" WHERE id = 'athlete-test-2';
 DELETE FROM "races" WHERE id IN ('race-a', 'race-b');
 EOF
@@ -1327,6 +1337,8 @@ enum AuctionStatus {
   SCHEDULED
   OPEN
   CLOSED
+
+  @@map("auction_status")
 }
 
 enum AuctionOutcome {
@@ -1336,6 +1348,8 @@ enum AuctionOutcome {
   REFUNDED
   DISPUTED
   FORFEITED_FEE
+
+  @@map("auction_outcome")
 }
 
 model Auction {
@@ -1343,15 +1357,16 @@ model Auction {
   raceEntryId         String         @map("race_entry_id")
   zone                BodyZone
   floorPriceCents     Int            @map("floor_price_cents")
-  openAt              DateTime       @map("open_at")
-  closeAt             DateTime       @map("close_at")
+  openAt              DateTime       @map("open_at") @db.Timestamptz(3)
+  closeAt             DateTime       @map("close_at") @db.Timestamptz(3)
+  proofDeadlineAt     DateTime?      @map("proof_deadline_at") @db.Timestamptz(3)
   status              AuctionStatus  @default(SCHEDULED)
   outcome             AuctionOutcome @default(PENDING)
   currentLeadingBidId String?        @map("current_leading_bid_id")
   commissionCents     Int?           @map("commission_cents")
   processingFeeCents  Int?           @map("processing_fee_cents")
-  createdAt           DateTime       @default(now()) @map("created_at")
-  updatedAt           DateTime       @updatedAt @map("updated_at")
+  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   raceEntry RaceEntry @relation(fields: [raceEntryId], references: [id])
 
@@ -1509,6 +1524,8 @@ enum BidStatus {
   WITHDRAWN
   WON
   LOST
+
+  @@map("bid_status")
 }
 
 model Bid {
@@ -1516,7 +1533,7 @@ model Bid {
   auctionId   String    @map("auction_id")
   bidderId    String    @map("bidder_id")
   amountCents Int       @map("amount_cents")
-  placedAt    DateTime  @default(now()) @map("placed_at")
+  placedAt    DateTime  @default(now()) @map("placed_at") @db.Timestamptz(3)
   status      BidStatus @default(LEADING)
 
   auction           Auction @relation("AuctionBids", fields: [auctionId], references: [id])
@@ -1524,6 +1541,7 @@ model Bid {
   leadingForAuction Auction? @relation("AuctionLeadingBid")
 
   @@index([auctionId, status])
+  @@index([bidderId])
   @@map("bids")
 }
 ```
@@ -1572,11 +1590,11 @@ Expected: applies cleanly, `Bid` table and the partial index both exist.
 
 ```bash
 npx prisma db execute --stdin <<'EOF'
-INSERT INTO "athletes" (id, name, email) VALUES ('athlete-test-3', 'Test Athlete Three', 'test3@example.com');
+INSERT INTO "athletes" (id, name, email, "updated_at") VALUES ('athlete-test-3', 'Test Athlete Three', 'test3@example.com', now());
 INSERT INTO "bidders" (id, email, "updated_at") VALUES ('bidder-test-1', 'bidder1@example.com', now());
 INSERT INTO "bidders" (id, email, "updated_at") VALUES ('bidder-test-2', 'bidder2@example.com', now());
 INSERT INTO "races" (id, name, date, timezone, location, "updated_at") VALUES ('race-c', 'Race C', '2026-11-08T08:00:00Z', 'America/Chicago', 'Chicago', now());
-INSERT INTO "race_entries" (id, "athlete_id", "race_id", "bib_number", "race_date", "updated_at") VALUES ('entry-c', 'athlete-test-3', 'race-c', '303', '2026-11-08T08:00:00Z', now());
+INSERT INTO "race_entries" (id, "athlete_id", "race_id", "bib_number", "race_date", "race_local_date", "updated_at") VALUES ('entry-c', 'athlete-test-3', 'race-c', '303', '2026-11-08T08:00:00Z', '2026-11-08', now());
 INSERT INTO "auctions" (id, "race_entry_id", zone, "floor_price_cents", "open_at", "close_at", "updated_at") VALUES ('auction-c', 'entry-c', 'ASS', 1000, '2026-11-01T08:00:00Z', '2026-11-03T08:00:00Z', now());
 INSERT INTO "bids" (id, "auction_id", "bidder_id", "amount_cents", status) VALUES ('bid-c1', 'auction-c', 'bidder-test-1', 1500, 'LEADING');
 INSERT INTO "bids" (id, "auction_id", "bidder_id", "amount_cents", status) VALUES ('bid-c2', 'auction-c', 'bidder-test-2', 2000, 'LEADING');
@@ -1726,6 +1744,8 @@ enum EscrowTransactionType {
   CAPTURED
   REFUNDED
   FAILED
+
+  @@map("escrow_transaction_type")
 }
 
 model EscrowTransaction {
@@ -1734,7 +1754,7 @@ model EscrowTransaction {
   stripePaymentIntentId String                @map("stripe_payment_intent_id")
   type                  EscrowTransactionType
   amountCents           Int                   @map("amount_cents")
-  createdAt             DateTime              @default(now()) @map("created_at")
+  createdAt             DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
 
   bid Bid @relation(fields: [bidId], references: [id])
 
@@ -1893,17 +1913,18 @@ enum ProofReviewStatus {
   PENDING
   APPROVED
   REJECTED
+
+  @@map("proof_review_status")
 }
 
 model SponsorshipProof {
   id           String            @id @default(cuid())
   auctionId    String            @unique @map("auction_id")
   mediaUrl     String            @map("media_url")
-  submittedAt  DateTime          @default(now()) @map("submitted_at")
-  deadline     DateTime
+  submittedAt  DateTime          @default(now()) @map("submitted_at") @db.Timestamptz(3)
   reviewStatus ProofReviewStatus @default(PENDING) @map("review_status")
   reviewedBy   String?           @map("reviewed_by")
-  reviewedAt   DateTime?         @map("reviewed_at")
+  reviewedAt   DateTime?         @map("reviewed_at") @db.Timestamptz(3)
 
   auction Auction @relation(fields: [auctionId], references: [id])
 
@@ -1915,6 +1936,8 @@ enum DisputeStatus {
   ARBITRATION
   RESOLVED_REFUND
   RESOLVED_UPHELD
+
+  @@map("dispute_status")
 }
 
 model Dispute {
@@ -1924,8 +1947,8 @@ model Dispute {
   reason          String
   status          DisputeStatus @default(OPEN)
   resolutionNotes String?       @map("resolution_notes")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  resolvedAt      DateTime?     @map("resolved_at")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  resolvedAt      DateTime?     @map("resolved_at") @db.Timestamptz(3)
 
   auction Auction @relation(fields: [auctionId], references: [id])
 
@@ -2162,11 +2185,12 @@ model Strike {
   reason              String
   triggeringAuctionId String?  @map("triggering_auction_id")
   excludedFromCount   Boolean? @map("excluded_from_count")
-  createdAt           DateTime @default(now()) @map("created_at")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   athlete Athlete @relation(fields: [athleteId], references: [id])
 
   @@index([athleteId])
+  @@index([triggeringAuctionId])
   @@map("strikes")
 }
 
@@ -2176,7 +2200,7 @@ model TrustScoreEvent {
   oldValue  Int      @map("old_value")
   newValue  Int      @map("new_value")
   reason    String
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   athlete Athlete @relation(fields: [athleteId], references: [id])
 
@@ -2450,6 +2474,6 @@ git commit -m "chore: finalize module wiring, verify full migration/test suite, 
 
 ## Self-Review Notes
 
-- **Spec coverage:** every entity in spec section 5 (BodyZone, Athlete, Bidder, ZoneFloorPrice, Race, RaceEntry, Auction, Bid, EscrowTransaction, SponsorshipProof, Dispute, Strike, TrustScoreEvent) has a task. The partial unique leading-bid index, the $10 floor-price check constraint, the same-day RaceEntry unique index, `status`/`outcome` split on Auction, and `commissionCents`/`processingFeeCents` are all present. dependency-cruiser enforcement (coordinator addition) is Task 3. Stack scaffold and migration mechanics are Tasks 1-2 and 13.
+- **Spec coverage:** every entity in spec section 5 (BodyZone, Athlete, Bidder, ZoneFloorPrice, Race, RaceEntry, Auction, Bid, EscrowTransaction, SponsorshipProof, Dispute, Strike, TrustScoreEvent) has a task. The partial unique leading-bid index, the $10 floor-price check constraint, the same-day RaceEntry unique index on `(athleteId, raceLocalDate)`, `status`/`outcome` split on Auction, and `commissionCents`/`processingFeeCents` are all present. dependency-cruiser enforcement (coordinator addition) is Task 3. Stack scaffold and migration mechanics are Tasks 1-2 and 13.
 - **Out of scope confirmed absent:** no controllers, no Stripe SDK calls, no auth, no bid-placement/increment-validation logic, no scheduling job, no row-locking transaction code (explicitly deferred per spec section 7, item 11) — matches spec section 8.
 - **Type consistency:** `AthleteDb`/`AthleteService`, `BidderDb`/`BidderService`, etc. method names and signatures used in later "Consumes" blocks match the "Produces" blocks of the tasks that define them.

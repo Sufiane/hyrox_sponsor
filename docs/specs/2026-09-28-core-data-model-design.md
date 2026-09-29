@@ -145,10 +145,16 @@ exists now purely as the FK target other entities need.
   `verifiedBy`
 - `raceDate` (`timestamptz`) — denormalized copy of `Race.date` at creation time,
   immutable thereafter
-- Unique index on `(athleteId, raceDate)` — blocks an athlete from having two
-  race entries on the same calendar date regardless of bib/race id (enforced at
-  the DB level since Postgres can't uniquely constrain across a join without
-  denormalization).
+- `raceLocalDate` (`date`) — the race's calendar date in `Race.timezone`,
+  computed by the application at entry-creation time and immutable thereafter
+  (no creation code exists in the data-model ticket).
+- Unique index on `(athleteId, raceLocalDate)` — blocks an athlete from having
+  two race entries on the same local calendar date regardless of bib/race id or
+  start time (enforced at the DB level since Postgres can't uniquely constrain
+  across a join without denormalization). Keyed on the local date, not the
+  `raceDate` instant, so two same-day races with different start times are
+  still rejected.
+- Index on `raceId` (FK lookups).
 - `Auction` rows for an athlete+race can only be created once
   `verificationStatus = VERIFIED` (service-layer gate; HYR-6 scope).
 
@@ -164,6 +170,9 @@ exists now purely as the FK target other entities need.
   `Auction` creation as `raceEntry.raceDate` ± 12/5 days, converted using
   `Race.timezone` into UTC. Stored, not derived at query time, so the HYR-8
   scheduling job can do a simple indexed range scan.
+- `proofDeadlineAt` (`timestamptz`, nullable) — proof-submission deadline, set
+  when the auction closes to race date + 48h. Null until then. No logic in the
+  data-model ticket; the closing job sets it.
 - `status` (`SCHEDULED/OPEN/CLOSED`) — bidding lifecycle only. Frozen at `CLOSED`
   once the auction window ends; never mutated again afterward, even by disputes.
 - `outcome` (`PENDING/AWAITING_PROOF/COMPLETED/REFUNDED/DISPUTED/FORFEITED_FEE`)
@@ -208,8 +217,10 @@ exists now purely as the FK target other entities need.
 ### 5.6 Proof & disputes
 
 **SponsorshipProof** — one per `Auction` (unique on `auctionId`).
-- `id`, `auctionId` FK, media ref, `submittedAt`, `deadline` (`raceDate + 48h`),
-  `reviewStatus` (`PENDING/APPROVED/REJECTED`), `reviewedBy`, `reviewedAt`
+- `id`, `auctionId` FK, media ref, `submittedAt`,
+  `reviewStatus` (`PENDING/APPROVED/REJECTED`), `reviewedBy`, `reviewedAt`. The submission deadline lives on
+  `Auction.proofDeadlineAt`, not on the proof row (a proof may not exist yet when
+  the deadline is set).
 
 **Dispute**
 - `id`, `auctionId` FK, `raisedBy`, `reason`, `status`
@@ -243,13 +254,19 @@ exists now purely as the FK target other entities need.
 - Prisma schema + `prisma migrate dev` locally, `prisma migrate deploy` in
   CI/prod. Standard migration history in `prisma/migrations/`.
 - Unique constraints: `ZoneFloorPrice(athleteId, zone)`,
-  `Auction(raceEntryId, zone)`, `RaceEntry(athleteId, raceDate)`,
+  `Auction(raceEntryId, zone)`, `RaceEntry(athleteId, raceLocalDate)`,
   `SponsorshipProof(auctionId)`, `Bidder(email)`.
 - Partial unique index (raw SQL): `Bid(auctionId) WHERE status = 'LEADING'`.
 - Key indexes: `Bid(auctionId, status)`, `Auction(status, openAt, closeAt)` (for
-  the HYR-8 scheduling job), `EscrowTransaction(bidId, status)`.
+  the HYR-8 scheduling job), `EscrowTransaction(bidId, status)`, plus FK
+  indexes `Bid(bidderId)`, `RaceEntry(raceId)`, `Strike(triggeringAuctionId)`.
 - All monetary columns `Int` (cents). All enums as native Postgres enums via
-  Prisma `enum`.
+  Prisma `enum`, each with `@@map` to a snake_case type name (`BodyZone` ->
+  `body_zone`, `AuctionStatus` -> `auction_status`, etc.); raw SQL uses the
+  mapped names.
+- **Timestamps**: every `DateTime` column is `timestamptz` (`@db.Timestamptz(3)`),
+  never bare `timestamp`. The single exception is `RaceEntry.raceLocalDate`,
+  which is a `date`.
 - No generic `deletedAt`/soft-delete for MVP beyond the explicit history tables
   (`Strike`, `TrustScoreEvent`) — see judgment calls below.
 - **Naming**: Postgres tables and columns are snake_case (plural table names,
@@ -279,8 +296,10 @@ implementation starts:
    current leading bid holds an active hold; prior leaders get voided rows —
    confirmed.
 4. **RaceEntry join entity** gates auction creation via bib verification, with a
-   denormalized `raceDate` + unique index to block same-day double entries —
-   confirmed.
+   denormalized `raceDate` instant plus a `raceLocalDate` (`date`, race calendar
+   date in `Race.timezone`, computed by the application at creation) with a
+   unique `(athleteId, raceLocalDate)` index to block same-day double entries
+   regardless of start time or timezone edge cases — confirmed.
 5. **Bidder identity**: keyed by email, upserted on first bid, holds Stripe
    customer id, no password — confirmed.
 6. **Trust score**: mutable column + full history log (`TrustScoreEvent`) —
@@ -293,7 +312,7 @@ implementation starts:
 9. **Financial audit fields**: `commissionCents`/`processingFeeCents` stored on
    `Auction` at resolution time rather than only ever recomputed from the bid
    amount — confirmed.
-10. **Race timing**: `timestamptz` + separate `Race.timezone` IANA column,
+10. **Race timing**: `timestamptz` everywhere + separate `Race.timezone` IANA column,
     auction window computed once at auction-creation time into absolute UTC
     instants — confirmed.
 11. **Leading-bid concurrency**: partial unique index as the DB-level backstop
