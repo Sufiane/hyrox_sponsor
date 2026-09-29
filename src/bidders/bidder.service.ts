@@ -8,6 +8,6 @@ export class BidderService {
   constructor(private readonly db: BidderDb) {}
 
   getOrCreateByEmail(email: string): Promise<BidderRecord> {
-    return this.db.upsertByEmail(email);
+    return this.db.upsertByEmail(email.trim().toLowerCase());
   }
 }

@@ -4,26 +4,26 @@ import { TrustScoreEventDb } from './trust-score-event.db.js';
 
 describe('TrustService', () => {
   describe('getActiveStrikeCount', () => {
-    describe('when the athlete has active strikes', () => {
-      it('returns the count of strikes not excluded from counting', async () => {
+    describe('when the db reports active strikes', () => {
+      // The excluded-from-count filtering lives in the SQL query, which unit tests here do not cover.
+      it('returns the count the db reports', async () => {
         const strikeDb = {
-          findActiveByAthlete: vi
-            .fn()
-            .mockResolvedValue([{ id: 's1' }, { id: 's2' }]),
+          countActiveByAthlete: vi.fn().mockResolvedValue(2),
         } as unknown as StrikeDb;
         const trustScoreEventDb = {} as TrustScoreEventDb;
         const service = new TrustService(strikeDb, trustScoreEventDb);
 
         const result = await service.getActiveStrikeCount('athlete-1');
 
+        expect(strikeDb.countActiveByAthlete).toHaveBeenCalledWith('athlete-1');
         expect(result).toBe(2);
       });
     });
 
-    describe('when the athlete has no active strikes', () => {
+    describe('when the db reports no active strikes', () => {
       it('returns zero', async () => {
         const strikeDb = {
-          findActiveByAthlete: vi.fn().mockResolvedValue([]),
+          countActiveByAthlete: vi.fn().mockResolvedValue(0),
         } as unknown as StrikeDb;
         const trustScoreEventDb = {} as TrustScoreEventDb;
         const service = new TrustService(strikeDb, trustScoreEventDb);

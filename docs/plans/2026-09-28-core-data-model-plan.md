@@ -2174,7 +2174,7 @@ git commit -m "feat: add SponsorshipProof and Dispute models, proofs and dispute
 
 **Interfaces:**
 - Consumes: `Athlete` model (Task 4).
-- Produces: `StrikeDb.findActiveByAthlete(athleteId: string): Promise<Strike[]>`, `TrustScoreEventDb.findByAthlete(athleteId: string): Promise<TrustScoreEvent[]>`, `TrustService.getActiveStrikeCount(athleteId: string): Promise<number>`, `TrustService.getScoreHistory(athleteId: string): Promise<TrustScoreEvent[]>`.
+- Produces: `StrikeDb.countActiveByAthlete(athleteId: string): Promise<number>`, `TrustScoreEventDb.findByAthlete(athleteId: string): Promise<TrustScoreEvent[]>`, `TrustService.getActiveStrikeCount(athleteId: string): Promise<number>`, `TrustService.getScoreHistory(athleteId: string): Promise<TrustScoreEvent[]>`.
 
 - [ ] **Step 1: Add `Strike` and `TrustScoreEvent` models to `prisma/schema.prisma`**
 
@@ -2239,9 +2239,7 @@ describe('TrustService', () => {
     describe('when the athlete has active strikes', () => {
       it('returns the count of strikes not excluded from counting', async () => {
         const strikeDb = {
-          findActiveByAthlete: vi
-            .fn()
-            .mockResolvedValue([{ id: 's1' }, { id: 's2' }]),
+          countActiveByAthlete: vi.fn().mockResolvedValue(2),
         } as unknown as StrikeDb;
         const trustScoreEventDb = {} as TrustScoreEventDb;
         const service = new TrustService(strikeDb, trustScoreEventDb);
@@ -2255,7 +2253,7 @@ describe('TrustService', () => {
     describe('when the athlete has no active strikes', () => {
       it('returns zero', async () => {
         const strikeDb = {
-          findActiveByAthlete: vi.fn().mockResolvedValue([]),
+          countActiveByAthlete: vi.fn().mockResolvedValue(0),
         } as unknown as StrikeDb;
         const trustScoreEventDb = {} as TrustScoreEventDb;
         const service = new TrustService(strikeDb, trustScoreEventDb);
@@ -2293,16 +2291,18 @@ Expected: FAIL.
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { Strike } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class StrikeDb {
   constructor(private readonly prisma: PrismaService) {}
 
-  findActiveByAthlete(athleteId: string): Promise<Strike[]> {
-    return this.prisma.strike.findMany({
-      where: { athleteId, excludedFromCount: { not: true } },
+  countActiveByAthlete(athleteId: string): Promise<number> {
+    return this.prisma.strike.count({
+      where: {
+        athleteId,
+        OR: [{ excludedFromCount: null }, { excludedFromCount: false }],
+      },
     });
   }
 }
@@ -2344,9 +2344,7 @@ export class TrustService {
   ) {}
 
   async getActiveStrikeCount(athleteId: string): Promise<number> {
-    const strikes = await this.strikeDb.findActiveByAthlete(athleteId);
-
-    return strikes.length;
+    return this.strikeDb.countActiveByAthlete(athleteId);
   }
 
   getScoreHistory(athleteId: string): Promise<TrustScoreEvent[]> {

@@ -7,6 +7,6 @@ export class DisputeDb {
   constructor(private readonly prisma: PrismaService) {}
 
   findOpenForAuction(auctionId: string): Promise<Dispute | null> {
-    return this.prisma.dispute.findFirst({ where: { auctionId, status: 'OPEN' } });
+    return this.prisma.dispute.findFirst({ where: { auctionId, status: { in: ['OPEN', 'ARBITRATION'] } } });
   }
 }

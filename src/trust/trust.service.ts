@@ -14,9 +14,7 @@ export class TrustService {
   ) {}
 
   async getActiveStrikeCount(athleteId: string): Promise<number> {
-    const strikes = await this.strikeDb.findActiveByAthlete(athleteId);
-
-    return strikes.length;
+    return this.strikeDb.countActiveByAthlete(athleteId);
   }
 
   getScoreHistory(athleteId: string): Promise<TrustScoreEventRecord[]> {

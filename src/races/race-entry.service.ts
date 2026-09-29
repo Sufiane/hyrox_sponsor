@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { RaceEntryDb } from './race-entry.db.js';
 
-type VerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
-
 @Injectable()
 export class RaceEntryService {
   constructor(private readonly db: RaceEntryDb) {}
@@ -14,8 +12,6 @@ export class RaceEntryService {
       return false;
     }
 
-    const verificationStatus = entry.verificationStatus as VerificationStatus;
-
-    return verificationStatus === 'VERIFIED';
+    return entry.verificationStatus === 'VERIFIED';
   }
 }
