@@ -1,31 +1,43 @@
 import { EscrowTransactionService } from './escrow-transaction.service.js';
 import { EscrowTransactionDb } from './escrow-transaction.db.js';
 
+function buildService(latest: { id: string; type: string } | null): EscrowTransactionService {
+  const db = {
+    findLatestForBid: vi.fn().mockResolvedValue(latest),
+  } as unknown as EscrowTransactionDb;
+
+  return new EscrowTransactionService(db);
+}
+
 describe('EscrowTransactionService', () => {
   describe('hasActiveAuthorization', () => {
-    describe('when an AUTHORIZED transaction exists for the bid', () => {
-      it('returns true', async () => {
-        const db = {
-          findActiveAuthorizationForBid: vi
-            .fn()
-            .mockResolvedValue({ id: 'escrow-1', type: 'AUTHORIZED' }),
-        } as unknown as EscrowTransactionDb;
-        const service = new EscrowTransactionService(db);
+    describe('when the bid has no escrow transactions', () => {
+      it('returns false', async () => {
+        const result = await buildService(null).hasActiveAuthorization('bid-1');
 
-        const result = await service.hasActiveAuthorization('bid-1');
+        expect(result).toBe(false);
+      });
+    });
+
+    describe('when the latest transaction is AUTHORIZED', () => {
+      it('returns true', async () => {
+        const result = await buildService({ id: 'escrow-1', type: 'AUTHORIZED' }).hasActiveAuthorization('bid-1');
 
         expect(result).toBe(true);
       });
     });
 
-    describe('when no AUTHORIZED transaction exists for the bid', () => {
+    describe('when the latest transaction is VOIDED', () => {
       it('returns false', async () => {
-        const db = {
-          findActiveAuthorizationForBid: vi.fn().mockResolvedValue(null),
-        } as unknown as EscrowTransactionDb;
-        const service = new EscrowTransactionService(db);
+        const result = await buildService({ id: 'escrow-2', type: 'VOIDED' }).hasActiveAuthorization('bid-1');
 
-        const result = await service.hasActiveAuthorization('bid-1');
+        expect(result).toBe(false);
+      });
+    });
+
+    describe('when the latest transaction is CAPTURED', () => {
+      it('returns false', async () => {
+        const result = await buildService({ id: 'escrow-3', type: 'CAPTURED' }).hasActiveAuthorization('bid-1');
 
         expect(result).toBe(false);
       });

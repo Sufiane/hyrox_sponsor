@@ -6,8 +6,8 @@ export class EscrowTransactionService {
   constructor(private readonly db: EscrowTransactionDb) {}
 
   async hasActiveAuthorization(bidId: string): Promise<boolean> {
-    const transaction = await this.db.findActiveAuthorizationForBid(bidId);
+    const latest = await this.db.findLatestForBid(bidId);
 
-    return transaction !== null;
+    return latest?.type === 'AUTHORIZED';
   }
 }

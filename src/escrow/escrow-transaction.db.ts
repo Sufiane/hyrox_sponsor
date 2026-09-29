@@ -6,10 +6,10 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class EscrowTransactionDb {
   constructor(private readonly prisma: PrismaService) {}
 
-  findActiveAuthorizationForBid(bidId: string): Promise<EscrowTransaction | null> {
+  findLatestForBid(bidId: string): Promise<EscrowTransaction | null> {
     return this.prisma.escrowTransaction.findFirst({
-      where: { bidId, type: 'AUTHORIZED' },
-      orderBy: { createdAt: 'desc' },
+      where: { bidId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
   }
 }

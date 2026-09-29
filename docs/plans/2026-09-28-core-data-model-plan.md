@@ -1733,7 +1733,7 @@ git commit -m "feat: add Bid model with partial unique leading-bid index, bids m
 
 **Interfaces:**
 - Consumes: `Bid` model (Task 9).
-- Produces: `EscrowTransactionDb.findActiveAuthorizationForBid(bidId: string): Promise<EscrowTransaction | null>`, `EscrowTransactionService.hasActiveAuthorization(bidId: string): Promise<boolean>`.
+- Produces: `EscrowTransactionDb.findLatestForBid(bidId: string): Promise<EscrowTransaction | null>`, `EscrowTransactionService.hasActiveAuthorization(bidId: string): Promise<boolean>`.
 
 - [ ] **Step 1: Add `EscrowTransaction` model to `prisma/schema.prisma`**
 
@@ -1789,7 +1789,7 @@ describe('EscrowTransactionService', () => {
     describe('when an AUTHORIZED transaction exists for the bid', () => {
       it('returns true', async () => {
         const db = {
-          findActiveAuthorizationForBid: vi
+          findLatestForBid: vi
             .fn()
             .mockResolvedValue({ id: 'escrow-1', type: 'AUTHORIZED' }),
         } as unknown as EscrowTransactionDb;
@@ -1804,7 +1804,7 @@ describe('EscrowTransactionService', () => {
     describe('when no AUTHORIZED transaction exists for the bid', () => {
       it('returns false', async () => {
         const db = {
-          findActiveAuthorizationForBid: vi.fn().mockResolvedValue(null),
+          findLatestForBid: vi.fn().mockResolvedValue(null),
         } as unknown as EscrowTransactionDb;
         const service = new EscrowTransactionService(db);
 
@@ -1833,10 +1833,10 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class EscrowTransactionDb {
   constructor(private readonly prisma: PrismaService) {}
 
-  findActiveAuthorizationForBid(bidId: string): Promise<EscrowTransaction | null> {
+  findLatestForBid(bidId: string): Promise<EscrowTransaction | null> {
     return this.prisma.escrowTransaction.findFirst({
-      where: { bidId, type: 'AUTHORIZED' },
-      orderBy: { createdAt: 'desc' },
+      where: { bidId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
   }
 }
@@ -1853,9 +1853,9 @@ export class EscrowTransactionService {
   constructor(private readonly db: EscrowTransactionDb) {}
 
   async hasActiveAuthorization(bidId: string): Promise<boolean> {
-    const transaction = await this.db.findActiveAuthorizationForBid(bidId);
+    const latest = await this.db.findLatestForBid(bidId);
 
-    return transaction !== null;
+    return latest?.type === 'AUTHORIZED';
   }
 }
 ```
