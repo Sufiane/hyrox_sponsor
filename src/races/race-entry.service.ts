@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { RaceEntryDb } from './race-entry.db.js';
 
+const VERIFICATION_STATUS = {
+  PENDING: 'PENDING',
+  VERIFIED: 'VERIFIED',
+  REJECTED: 'REJECTED',
+} as const;
+
 @Injectable()
 export class RaceEntryService {
   constructor(private readonly db: RaceEntryDb) {}
@@ -12,6 +18,6 @@ export class RaceEntryService {
       return false;
     }
 
-    return entry.verificationStatus === 'VERIFIED';
+    return entry.verificationStatus === VERIFICATION_STATUS.VERIFIED;
   }
 }
