@@ -17,6 +17,8 @@ enum BodyZone {
   LEFT_THIGH
   RIGHT_THIGH
   ASS
+
+  @@map("body_zone")
 }
 
 model Athlete {
@@ -24,14 +26,14 @@ model Athlete {
   name                     String
   email                    String    @unique
   isAdult                  Boolean   @default(false) @map("is_adult")
-  adultAttestedAt          DateTime? @map("adult_attested_at")
+  adultAttestedAt          DateTime? @map("adult_attested_at") @db.Timestamptz(3)
   trustScore               Int       @default(50) @map("trust_score")
   strikeCount              Int       @default(0) @map("strike_count")
   isBanned                 Boolean   @default(false) @map("is_banned")
   lifetimeSponsorshipCents Int       @default(0) @map("lifetime_sponsorship_cents")
   stripeConnectAccountId   String?   @map("stripe_connect_account_id")
-  createdAt                DateTime  @default(now()) @map("created_at")
-  updatedAt                DateTime  @updatedAt @map("updated_at")
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   zoneFloorPrices  ZoneFloorPrice[]
   raceEntries      RaceEntry[]
@@ -45,8 +47,8 @@ model Bidder {
   id               String   @id @default(cuid())
   email            String   @unique
   stripeCustomerId String?  @map("stripe_customer_id")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   bids Bid[]
 
@@ -58,8 +60,8 @@ model ZoneFloorPrice {
   athleteId       String   @map("athlete_id")
   zone            BodyZone
   floorPriceCents Int      @map("floor_price_cents")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   athlete Athlete @relation(fields: [athleteId], references: [id])
 
@@ -73,8 +75,8 @@ model Race {
   date      DateTime @db.Timestamptz(3)
   timezone  String
   location  String
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   raceEntries RaceEntry[]
 
@@ -85,6 +87,8 @@ enum RaceEntryVerificationStatus {
   PENDING
   VERIFIED
   REJECTED
+
+  @@map("race_entry_verification_status")
 }
 
 model RaceEntry {
@@ -94,17 +98,19 @@ model RaceEntry {
   bibNumber               String                      @map("bib_number")
   verificationStatus      RaceEntryVerificationStatus @default(PENDING) @map("verification_status")
   verificationDocumentUrl String?                     @map("verification_document_url")
-  verifiedAt              DateTime?                   @map("verified_at")
+  verifiedAt              DateTime?                   @map("verified_at") @db.Timestamptz(3)
   verifiedBy              String?                     @map("verified_by")
   raceDate                DateTime                    @map("race_date") @db.Timestamptz(3)
-  createdAt               DateTime                    @default(now()) @map("created_at")
-  updatedAt               DateTime                    @updatedAt @map("updated_at")
+  raceLocalDate           DateTime                    @map("race_local_date") @db.Date
+  createdAt               DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   athlete  Athlete   @relation(fields: [athleteId], references: [id])
   race     Race      @relation(fields: [raceId], references: [id])
   auctions Auction[]
 
-  @@unique([athleteId, raceDate])
+  @@unique([athleteId, raceLocalDate])
+  @@index([raceId])
   @@map("race_entries")
 }
 
@@ -112,6 +118,8 @@ enum AuctionStatus {
   SCHEDULED
   OPEN
   CLOSED
+
+  @@map("auction_status")
 }
 
 enum AuctionOutcome {
@@ -121,6 +129,8 @@ enum AuctionOutcome {
   REFUNDED
   DISPUTED
   FORFEITED_FEE
+
+  @@map("auction_outcome")
 }
 
 model Auction {
@@ -130,13 +140,14 @@ model Auction {
   floorPriceCents     Int            @map("floor_price_cents")
   openAt              DateTime       @map("open_at") @db.Timestamptz(3)
   closeAt             DateTime       @map("close_at") @db.Timestamptz(3)
+  proofDeadlineAt     DateTime?      @map("proof_deadline_at") @db.Timestamptz(3)
   status              AuctionStatus  @default(SCHEDULED)
   outcome             AuctionOutcome @default(PENDING)
   currentLeadingBidId String?        @unique @map("current_leading_bid_id")
   commissionCents     Int?           @map("commission_cents")
   processingFeeCents  Int?           @map("processing_fee_cents")
-  createdAt           DateTime       @default(now()) @map("created_at")
-  updatedAt           DateTime       @updatedAt @map("updated_at")
+  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   raceEntry         RaceEntry         @relation(fields: [raceEntryId], references: [id])
   bids              Bid[]             @relation("AuctionBids")
@@ -156,6 +167,8 @@ enum BidStatus {
   WITHDRAWN
   WON
   LOST
+
+  @@map("bid_status")
 }
 
 model Bid {
@@ -163,7 +176,7 @@ model Bid {
   auctionId   String    @map("auction_id")
   bidderId    String    @map("bidder_id")
   amountCents Int       @map("amount_cents")
-  placedAt    DateTime  @default(now()) @map("placed_at")
+  placedAt    DateTime  @default(now()) @map("placed_at") @db.Timestamptz(3)
   status      BidStatus @default(LEADING)
 
   auction            Auction             @relation("AuctionBids", fields: [auctionId], references: [id])
@@ -172,6 +185,7 @@ model Bid {
   escrowTransactions EscrowTransaction[]
 
   @@index([auctionId, status])
+  @@index([bidderId])
   @@map("bids")
 }
 
@@ -181,6 +195,8 @@ enum EscrowTransactionType {
   CAPTURED
   REFUNDED
   FAILED
+
+  @@map("escrow_transaction_type")
 }
 
 model EscrowTransaction {
@@ -189,7 +205,7 @@ model EscrowTransaction {
   stripePaymentIntentId String                @map("stripe_payment_intent_id")
   type                  EscrowTransactionType
   amountCents           Int                   @map("amount_cents")
-  createdAt             DateTime              @default(now()) @map("created_at")
+  createdAt             DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
 
   bid Bid @relation(fields: [bidId], references: [id])
 
@@ -201,17 +217,18 @@ enum ProofReviewStatus {
   PENDING
   APPROVED
   REJECTED
+
+  @@map("proof_review_status")
 }
 
 model SponsorshipProof {
   id           String            @id @default(cuid())
   auctionId    String            @unique @map("auction_id")
   mediaUrl     String            @map("media_url")
-  submittedAt  DateTime          @default(now()) @map("submitted_at")
-  deadline     DateTime
+  submittedAt  DateTime          @default(now()) @map("submitted_at") @db.Timestamptz(3)
   reviewStatus ProofReviewStatus @default(PENDING) @map("review_status")
   reviewedBy   String?           @map("reviewed_by")
-  reviewedAt   DateTime?         @map("reviewed_at")
+  reviewedAt   DateTime?         @map("reviewed_at") @db.Timestamptz(3)
 
   auction Auction @relation(fields: [auctionId], references: [id])
 
@@ -223,6 +240,8 @@ enum DisputeStatus {
   ARBITRATION
   RESOLVED_REFUND
   RESOLVED_UPHELD
+
+  @@map("dispute_status")
 }
 
 model Dispute {
@@ -232,8 +251,8 @@ model Dispute {
   reason          String
   status          DisputeStatus @default(OPEN)
   resolutionNotes String?       @map("resolution_notes")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  resolvedAt      DateTime?     @map("resolved_at")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  resolvedAt      DateTime?     @map("resolved_at") @db.Timestamptz(3)
 
   auction Auction @relation(fields: [auctionId], references: [id])
 
@@ -247,12 +266,13 @@ model Strike {
   reason              String
   triggeringAuctionId String?  @map("triggering_auction_id")
   excludedFromCount   Boolean? @map("excluded_from_count")
-  createdAt           DateTime @default(now()) @map("created_at")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   athlete           Athlete  @relation(fields: [athleteId], references: [id])
   triggeringAuction Auction? @relation(fields: [triggeringAuctionId], references: [id], onDelete: SetNull)
 
   @@index([athleteId])
+  @@index([triggeringAuctionId])
   @@map("strikes")
 }
 
@@ -262,7 +282,7 @@ model TrustScoreEvent {
   oldValue  Int      @map("old_value")
   newValue  Int      @map("new_value")
   reason    String
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   athlete Athlete @relation(fields: [athleteId], references: [id])
 
