@@ -25,6 +25,7 @@
 - Project is native ESM: `package.json` has `"type": "module"`, `tsconfig.json` uses `module`/`moduleResolution`: `NodeNext`. Every relative import (`./foo`, `../foo`) in source and test files must carry an explicit `.js` extension (Node ESM resolution requirement) — package imports (`@nestjs/common`, `@prisma/client`, `vitest`, etc.) are unaffected.
 - NestJS packages pinned to v12 (exact resolved patch version from `package-lock.json`, per the pinning rule above).
 - `*.service.ts`/`*.usecase.ts` files must never import `@prisma/client` — only `*.db.ts` files may. Enforced by `dependency-cruiser`.
+- Branded types from `src/common` for entity ids, `NormalizedEmail`, `Cents`, Stripe ids, `TrustScore` and `IanaTimezone`. Casts to a brand happen only in `*.db.ts` files and the `src/common` constructors; services never cast. Code snippets later in this plan (bidder, races, escrow, zones, trust) predate this convention and show plain `string`/`number` signatures; the implemented code uses the brands.
 - Both `*Service` and `*Db` are registered as providers in their module (CLAUDE.md example shape).
 - Delete dead code rather than commenting it out. No comments restating what the code already says.
 - Comments only for genuinely non-obvious "why" — most tasks in this plan need none.

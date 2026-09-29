@@ -282,6 +282,23 @@ exists now purely as the FK target other entities need.
   declares `const VERIFICATION_STATUS = { PENDING: 'PENDING', VERIFIED: 'VERIFIED', REJECTED: 'REJECTED' } as const;`
   and compares against `VERIFICATION_STATUS.VERIFIED`.
 
+### 6.1 Branded types convention
+
+Domain scalars are branded types (`Brand<T, Name>` in `src/common/brand.ts`) so a plain `string`/`number` cannot be passed where an id, email or money amount is required. `src/common` never imports `@prisma/client`.
+
+- Ids: `AthleteId`, `RaceId`, `AuctionId`, `BidId`, `BidderId` (`ids.ts`).
+- `NormalizedEmail` with `normalizeEmail(raw)` (trim + lowercase).
+- `Cents` with `cents(value)`, `addCents`, `percentOfCents`.
+- `StripePaymentIntentId`, `StripeCustomerId`, `StripeConnectAccountId`.
+- `TrustScore` with `trustScore(value)` (integer 0..100).
+- `IanaTimezone` with `ianaTimezone(value)`.
+
+`Cents`, `TrustScore` and `IanaTimezone` validate at construction and throw on invalid input.
+
+Casting rule: only `*.db.ts` files and the `src/common` constructors cast to a brand. Services never use `as` to a brand; they receive branded values from callers or the db layer, or build them through the `src/common` constructors. Prisma record types are returned as-is (no mapping layer), so record fields (e.g. `TrustScoreEvent.oldValue`, `Race.timezone`) stay unbranded; a brand appears only where a db method returns a scalar.
+
+DEFERRED: `percentOfCents` rounding is currently a `Math.floor` placeholder (covered by tests). The final rounding rule is decided in HYR-9/HYR-14.
+
 ## 7. Judgment calls made — flagged for coordinator/user confirmation
 
 All of the following were resolved via direct Q&A and a `grill-me` pass during
