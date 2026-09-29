@@ -1,5 +1,6 @@
 import { DisputeService } from './dispute.service.js';
 import { DisputeDb } from './dispute.db.js';
+import type { AuctionId } from '../common/index.js';
 
 function buildService(dispute: { id: string; status: string } | null): DisputeService {
   const db = {
@@ -13,7 +14,7 @@ describe('DisputeService', () => {
   describe('hasOpenDispute', () => {
     describe('when an OPEN dispute exists for the auction', () => {
       it('returns true', async () => {
-        const result = await buildService({ id: 'dispute-1', status: 'OPEN' }).hasOpenDispute('auction-1');
+        const result = await buildService({ id: 'dispute-1', status: 'OPEN' }).hasOpenDispute('auction-1' as AuctionId);
 
         expect(result).toBe(true);
       });
@@ -21,7 +22,7 @@ describe('DisputeService', () => {
 
     describe('when an ARBITRATION dispute exists for the auction', () => {
       it('returns true', async () => {
-        const result = await buildService({ id: 'dispute-2', status: 'ARBITRATION' }).hasOpenDispute('auction-1');
+        const result = await buildService({ id: 'dispute-2', status: 'ARBITRATION' }).hasOpenDispute('auction-1' as AuctionId);
 
         expect(result).toBe(true);
       });
@@ -29,7 +30,7 @@ describe('DisputeService', () => {
 
     describe('when no open dispute exists for the auction', () => {
       it('returns false', async () => {
-        const result = await buildService(null).hasOpenDispute('auction-1');
+        const result = await buildService(null).hasOpenDispute('auction-1' as AuctionId);
 
         expect(result).toBe(false);
       });

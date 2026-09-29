@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { AuctionId } from '../common/index.js';
 import { SponsorshipProof } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -6,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class SponsorshipProofDb {
   constructor(private readonly prisma: PrismaService) {}
 
-  findByAuctionId(auctionId: string): Promise<SponsorshipProof | null> {
+  findByAuctionId(auctionId: AuctionId): Promise<SponsorshipProof | null> {
     return this.prisma.sponsorshipProof.findUnique({ where: { auctionId } });
   }
 }

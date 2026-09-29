@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { AuctionService } from './auction.service.js';
 import { AuctionDb } from './auction.db.js';
+import type { AuctionId } from '../common/index.js';
 
 describe('AuctionService', () => {
   describe('getById', () => {
@@ -10,7 +11,7 @@ describe('AuctionService', () => {
         const db = { findById: vi.fn().mockResolvedValue(auction) } as unknown as AuctionDb;
         const service = new AuctionService(db);
 
-        const result = await service.getById('auction-1');
+        const result = await service.getById('auction-1' as AuctionId);
 
         expect(result).toEqual(auction);
       });
@@ -21,7 +22,7 @@ describe('AuctionService', () => {
         const db = { findById: vi.fn().mockResolvedValue(null) } as unknown as AuctionDb;
         const service = new AuctionService(db);
 
-        await expect(service.getById('missing')).rejects.toThrow(NotFoundException);
+        await expect(service.getById('missing' as AuctionId)).rejects.toThrow(NotFoundException);
       });
     });
   });

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { AuctionId } from '../common/index.js';
 import { Dispute } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -6,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class DisputeDb {
   constructor(private readonly prisma: PrismaService) {}
 
-  findOpenForAuction(auctionId: string): Promise<Dispute | null> {
+  findOpenForAuction(auctionId: AuctionId): Promise<Dispute | null> {
     return this.prisma.dispute.findFirst({ where: { auctionId, status: { in: ['OPEN', 'ARBITRATION'] } } });
   }
 }

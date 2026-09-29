@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { AthleteId } from '../common/index.js';
 import { StrikeDb } from './strike.db.js';
 import { TrustScoreEventDb } from './trust-score-event.db.js';
 
@@ -13,11 +14,11 @@ export class TrustService {
     private readonly trustScoreEventDb: TrustScoreEventDb,
   ) {}
 
-  async getActiveStrikeCount(athleteId: string): Promise<number> {
+  async getActiveStrikeCount(athleteId: AthleteId): Promise<number> {
     return this.strikeDb.countActiveByAthlete(athleteId);
   }
 
-  getScoreHistory(athleteId: string): Promise<TrustScoreEventRecord[]> {
+  getScoreHistory(athleteId: AthleteId): Promise<TrustScoreEventRecord[]> {
     return this.trustScoreEventDb.findByAthlete(athleteId);
   }
 }

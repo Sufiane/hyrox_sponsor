@@ -1,5 +1,6 @@
 import { RaceEntryService } from './race-entry.service.js';
 import { RaceEntryDb } from './race-entry.db.js';
+import type { AthleteId, RaceId } from '../common/index.js';
 
 describe('RaceEntryService', () => {
   describe('isVerified', () => {
@@ -10,7 +11,7 @@ describe('RaceEntryService', () => {
         } as unknown as RaceEntryDb;
         const service = new RaceEntryService(db);
 
-        const result = await service.isVerified('athlete-1', 'race-1');
+        const result = await service.isVerified('athlete-1' as AthleteId, 'race-1' as RaceId);
 
         expect(result).toBe(false);
       });
@@ -25,7 +26,7 @@ describe('RaceEntryService', () => {
         } as unknown as RaceEntryDb;
         const service = new RaceEntryService(db);
 
-        const result = await service.isVerified('athlete-1', 'race-1');
+        const result = await service.isVerified('athlete-1' as AthleteId, 'race-1' as RaceId);
 
         expect(result).toBe(true);
       });
@@ -40,7 +41,7 @@ describe('RaceEntryService', () => {
         } as unknown as RaceEntryDb;
         const service = new RaceEntryService(db);
 
-        const result = await service.isVerified('athlete-1', 'race-1');
+        const result = await service.isVerified('athlete-1' as AthleteId, 'race-1' as RaceId);
 
         expect(result).toBe(false);
       });

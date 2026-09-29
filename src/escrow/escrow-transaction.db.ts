@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { BidId } from '../common/index.js';
 import { EscrowTransaction } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -6,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class EscrowTransactionDb {
   constructor(private readonly prisma: PrismaService) {}
 
-  findLatestForBid(bidId: string): Promise<EscrowTransaction | null> {
+  findLatestForBid(bidId: BidId): Promise<EscrowTransaction | null> {
     return this.prisma.escrowTransaction.findFirst({
       where: { bidId },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],

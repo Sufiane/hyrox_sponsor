@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { NormalizedEmail } from '../common/index.js';
 import { Bidder } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -6,11 +7,11 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class BidderDb {
   constructor(private readonly prisma: PrismaService) {}
 
-  findByEmail(email: string): Promise<Bidder | null> {
+  findByEmail(email: NormalizedEmail): Promise<Bidder | null> {
     return this.prisma.bidder.findUnique({ where: { email } });
   }
 
-  upsertByEmail(email: string): Promise<Bidder> {
+  upsertByEmail(email: NormalizedEmail): Promise<Bidder> {
     return this.prisma.bidder.upsert({
       where: { email },
       create: { email },

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { AthleteId } from '../common/index.js';
 import { Athlete } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -6,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class AthleteDb {
   constructor(private readonly prisma: PrismaService) {}
 
-  findById(id: string): Promise<Athlete | null> {
+  findById(id: AthleteId): Promise<Athlete | null> {
     return this.prisma.athlete.findUnique({ where: { id } });
   }
 }

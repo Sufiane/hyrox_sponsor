@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { AuctionId } from '../common/index.js';
 import { AuctionDb } from './auction.db.js';
 
 type AuctionRecord = NonNullable<Awaited<ReturnType<AuctionDb['findById']>>>;
@@ -7,7 +8,7 @@ type AuctionRecord = NonNullable<Awaited<ReturnType<AuctionDb['findById']>>>;
 export class AuctionService {
   constructor(private readonly db: AuctionDb) {}
 
-  async getById(id: string): Promise<AuctionRecord> {
+  async getById(id: AuctionId): Promise<AuctionRecord> {
     const auction = await this.db.findById(id);
 
     if (!auction) {

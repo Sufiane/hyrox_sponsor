@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { AuctionId } from '../common/index.js';
 import { Auction } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -6,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class AuctionDb {
   constructor(private readonly prisma: PrismaService) {}
 
-  findById(id: string): Promise<Auction | null> {
+  findById(id: AuctionId): Promise<Auction | null> {
     return this.prisma.auction.findUnique({ where: { id } });
   }
 }

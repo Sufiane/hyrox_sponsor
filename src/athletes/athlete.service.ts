@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { AthleteId } from '../common/index.js';
 import { AthleteDb } from './athlete.db.js';
 
 type AthleteRecord = NonNullable<Awaited<ReturnType<AthleteDb['findById']>>>;
@@ -7,7 +8,7 @@ type AthleteRecord = NonNullable<Awaited<ReturnType<AthleteDb['findById']>>>;
 export class AthleteService {
   constructor(private readonly db: AthleteDb) {}
 
-  async getById(id: string): Promise<AthleteRecord> {
+  async getById(id: AthleteId): Promise<AthleteRecord> {
     const athlete = await this.db.findById(id);
 
     if (!athlete) {

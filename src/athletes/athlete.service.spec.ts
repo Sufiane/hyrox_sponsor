@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { AthleteService } from './athlete.service.js';
 import { AthleteDb } from './athlete.db.js';
+import type { AthleteId } from '../common/index.js';
 
 describe('AthleteService', () => {
   describe('getById', () => {
@@ -10,7 +11,7 @@ describe('AthleteService', () => {
         const db = { findById: vi.fn().mockResolvedValue(athlete) } as unknown as AthleteDb;
         const service = new AthleteService(db);
 
-        const result = await service.getById('athlete-1');
+        const result = await service.getById('athlete-1' as AthleteId);
 
         expect(result).toEqual(athlete);
       });
@@ -21,7 +22,7 @@ describe('AthleteService', () => {
         const db = { findById: vi.fn().mockResolvedValue(null) } as unknown as AthleteDb;
         const service = new AthleteService(db);
 
-        await expect(service.getById('missing')).rejects.toThrow(NotFoundException);
+        await expect(service.getById('missing' as AthleteId)).rejects.toThrow(NotFoundException);
       });
     });
   });

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { normalizeEmail } from '../common/index.js';
 import { BidderDb } from './bidder.db.js';
 
 type BidderRecord = Awaited<ReturnType<BidderDb['upsertByEmail']>>;
@@ -7,7 +8,7 @@ type BidderRecord = Awaited<ReturnType<BidderDb['upsertByEmail']>>;
 export class BidderService {
   constructor(private readonly db: BidderDb) {}
 
-  getOrCreateByEmail(email: string): Promise<BidderRecord> {
-    return this.db.upsertByEmail(email.trim().toLowerCase());
+  getOrCreateByEmail(rawEmail: string): Promise<BidderRecord> {
+    return this.db.upsertByEmail(normalizeEmail(rawEmail));
   }
 }

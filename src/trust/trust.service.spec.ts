@@ -1,6 +1,7 @@
 import { TrustService } from './trust.service.js';
 import { StrikeDb } from './strike.db.js';
 import { TrustScoreEventDb } from './trust-score-event.db.js';
+import type { AthleteId } from '../common/index.js';
 
 describe('TrustService', () => {
   describe('getActiveStrikeCount', () => {
@@ -13,7 +14,7 @@ describe('TrustService', () => {
         const trustScoreEventDb = {} as TrustScoreEventDb;
         const service = new TrustService(strikeDb, trustScoreEventDb);
 
-        const result = await service.getActiveStrikeCount('athlete-1');
+        const result = await service.getActiveStrikeCount('athlete-1' as AthleteId);
 
         expect(strikeDb.countActiveByAthlete).toHaveBeenCalledWith('athlete-1');
         expect(result).toBe(2);
@@ -28,7 +29,7 @@ describe('TrustService', () => {
         const trustScoreEventDb = {} as TrustScoreEventDb;
         const service = new TrustService(strikeDb, trustScoreEventDb);
 
-        const result = await service.getActiveStrikeCount('athlete-1');
+        const result = await service.getActiveStrikeCount('athlete-1' as AthleteId);
 
         expect(result).toBe(0);
       });
@@ -44,7 +45,7 @@ describe('TrustService', () => {
       } as unknown as TrustScoreEventDb;
       const service = new TrustService(strikeDb, trustScoreEventDb);
 
-      const result = await service.getScoreHistory('athlete-1');
+      const result = await service.getScoreHistory('athlete-1' as AthleteId);
 
       expect(result).toEqual(events);
     });

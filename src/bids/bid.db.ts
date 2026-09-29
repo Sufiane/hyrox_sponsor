@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { AuctionId } from '../common/index.js';
 import { Bid } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -6,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class BidDb {
   constructor(private readonly prisma: PrismaService) {}
 
-  findLeadingForAuction(auctionId: string): Promise<Bid | null> {
+  findLeadingForAuction(auctionId: AuctionId): Promise<Bid | null> {
     return this.prisma.bid.findFirst({
       where: { auctionId, status: 'LEADING' },
     });

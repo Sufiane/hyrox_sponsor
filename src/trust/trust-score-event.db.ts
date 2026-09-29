@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { AthleteId } from '../common/index.js';
 import { TrustScoreEvent } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -6,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class TrustScoreEventDb {
   constructor(private readonly prisma: PrismaService) {}
 
-  findByAthlete(athleteId: string): Promise<TrustScoreEvent[]> {
+  findByAthlete(athleteId: AthleteId): Promise<TrustScoreEvent[]> {
     return this.prisma.trustScoreEvent.findMany({
       where: { athleteId },
       orderBy: { createdAt: 'asc' },

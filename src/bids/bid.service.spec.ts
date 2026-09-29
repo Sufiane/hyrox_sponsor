@@ -1,5 +1,6 @@
 import { BidService } from './bid.service.js';
 import { BidDb } from './bid.db.js';
+import type { AuctionId } from '../common/index.js';
 
 describe('BidService', () => {
   describe('getLeadingBid', () => {
@@ -9,7 +10,7 @@ describe('BidService', () => {
         const db = { findLeadingForAuction: vi.fn().mockResolvedValue(bid) } as unknown as BidDb;
         const service = new BidService(db);
 
-        const result = await service.getLeadingBid('auction-1');
+        const result = await service.getLeadingBid('auction-1' as AuctionId);
 
         expect(result).toEqual(bid);
       });
@@ -22,7 +23,7 @@ describe('BidService', () => {
         } as unknown as BidDb;
         const service = new BidService(db);
 
-        const result = await service.getLeadingBid('auction-1');
+        const result = await service.getLeadingBid('auction-1' as AuctionId);
 
         expect(result).toBeNull();
       });
