@@ -13,6 +13,19 @@ module.exports = {
         path: 'node_modules/@prisma/client',
       },
     },
+    {
+      name: 'no-prisma-service-outside-db-layer',
+      comment:
+        '*.service.ts and *.usecase.ts must not import anything under src/prisma/ (PrismaService is only for *.db.ts files and modules).',
+      severity: 'error',
+      from: {
+        path: '^src/.+\\.(service|usecase)\\.ts$',
+        pathNot: '^src/prisma/',
+      },
+      to: {
+        path: '^src/prisma/',
+      },
+    },
   ],
   options: {
     doNotFollow: {
