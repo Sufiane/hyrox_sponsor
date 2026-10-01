@@ -1,5 +1,6 @@
-import { NotFoundException } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { type MockInstance } from 'vitest';
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { RaceService } from './race.service.js';
 import { RaceDb } from './race.db.js';
@@ -33,12 +34,29 @@ describe('RaceService', () => {
     });
 
     describe('when the race does not exist', () => {
+      let warn: MockInstance;
+
       beforeEach(() => {
         db.findById.mockResolvedValue(null);
+        warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      });
+
+      afterEach(() => {
+        warn.mockRestore();
       });
 
       it('throws NotFoundException', async () => {
         await expect(service.getById('missing' as RaceId)).rejects.toThrow(NotFoundException);
+      });
+
+      it('throws the race_not_found code', async () => {
+        await expect(service.getById('missing' as RaceId)).rejects.toThrow('race_not_found');
+      });
+
+      it('logs the missing id', async () => {
+        await service.getById('missing' as RaceId).catch(() => undefined);
+
+        expect(warn).toHaveBeenCalledWith('Race missing not found');
       });
     });
   });
