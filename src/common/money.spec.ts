@@ -13,25 +13,25 @@ describe('cents', () => {
 
   describe('when the value is negative', () => {
     it('throws', () => {
-      expect(() => cents(-1)).toThrow(Error);
+      expect(() => cents(-1)).toThrow('cents_invalid');
     });
   });
 
   describe('when the value is not an integer', () => {
     it('throws', () => {
-      expect(() => cents(10.5)).toThrow(Error);
+      expect(() => cents(10.5)).toThrow('cents_invalid');
     });
   });
 
   describe('when the value is NaN', () => {
     it('throws', () => {
-      expect(() => cents(Number.NaN)).toThrow(Error);
+      expect(() => cents(Number.NaN)).toThrow('cents_invalid');
     });
   });
 
   describe('when the value is infinite', () => {
     it('throws', () => {
-      expect(() => cents(Number.POSITIVE_INFINITY)).toThrow(Error);
+      expect(() => cents(Number.POSITIVE_INFINITY)).toThrow('cents_invalid');
     });
   });
 
@@ -72,19 +72,19 @@ describe('percentOfCents', () => {
 
   describe('when the percent is negative', () => {
     it('throws', () => {
-      expect(() => percentOfCents(cents(100), -1)).toThrow(Error);
+      expect(() => percentOfCents(cents(100), -1)).toThrow('percent_invalid');
     });
   });
 
   describe('when the percent is NaN', () => {
     it('throws', () => {
-      expect(() => percentOfCents(cents(100), Number.NaN)).toThrow(Error);
+      expect(() => percentOfCents(cents(100), Number.NaN)).toThrow('percent_invalid');
     });
   });
 
   describe('when the percent is infinite', () => {
     it('throws', () => {
-      expect(() => percentOfCents(cents(100), Number.POSITIVE_INFINITY)).toThrow(Error);
+      expect(() => percentOfCents(cents(100), Number.POSITIVE_INFINITY)).toThrow('percent_invalid');
     });
   });
 });

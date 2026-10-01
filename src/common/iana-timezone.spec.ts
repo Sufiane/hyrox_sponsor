@@ -8,14 +8,14 @@ describe('ianaTimezone', () => {
   });
 
   describe('when the value is not a timezone', () => {
-    it('throws naming the value', () => {
-      expect(() => ianaTimezone('Mars/Olympus')).toThrow(/Mars\/Olympus/);
+    it('throws', () => {
+      expect(() => ianaTimezone('Mars/Olympus')).toThrow('iana_timezone_invalid');
     });
   });
 
   describe('when the value is empty', () => {
     it('throws', () => {
-      expect(() => ianaTimezone('')).toThrow(Error);
+      expect(() => ianaTimezone('')).toThrow('iana_timezone_invalid');
     });
   });
 });

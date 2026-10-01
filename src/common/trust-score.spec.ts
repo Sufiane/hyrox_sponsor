@@ -17,25 +17,25 @@ describe('trustScore', () => {
 
   describe('when the value is below 0', () => {
     it('throws', () => {
-      expect(() => trustScore(-1)).toThrow(Error);
+      expect(() => trustScore(-1)).toThrow('trust_score_invalid');
     });
   });
 
   describe('when the value is above 100', () => {
     it('throws', () => {
-      expect(() => trustScore(101)).toThrow(Error);
+      expect(() => trustScore(101)).toThrow('trust_score_invalid');
     });
   });
 
   describe('when the value is not an integer', () => {
     it('throws', () => {
-      expect(() => trustScore(50.5)).toThrow(Error);
+      expect(() => trustScore(50.5)).toThrow('trust_score_invalid');
     });
   });
 
   describe('when the value is NaN', () => {
     it('throws', () => {
-      expect(() => trustScore(Number.NaN)).toThrow(Error);
+      expect(() => trustScore(Number.NaN)).toThrow('trust_score_invalid');
     });
   });
 });

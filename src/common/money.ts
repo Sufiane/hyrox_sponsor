@@ -4,7 +4,7 @@ export type Cents = Brand<number, 'Cents'>;
 
 export function cents(value: number): Cents {
   if (!Number.isInteger(value) || value < 0) {
-    throw new Error(`Cents must be a non-negative integer, received ${value}`);
+    throw new Error('cents_invalid');
   }
 
   return value as Cents;
@@ -20,7 +20,7 @@ function roundToWholeCents(value: number): number {
 
 export function percentOfCents(amount: Cents, percent: number): Cents {
   if (!Number.isFinite(percent) || percent < 0) {
-    throw new Error(`Percent must be a finite number >= 0, received ${percent}`);
+    throw new Error('percent_invalid');
   }
 
   return cents(roundToWholeCents((amount * percent) / 100));
