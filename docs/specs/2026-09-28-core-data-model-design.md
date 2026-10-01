@@ -287,7 +287,7 @@ exists now purely as the FK target other entities need.
 - Errors are snake_case codes (`NotFoundException('athlete_not_found')`). The readable detail goes to a Logger line at the throw site: one `private readonly logger = new Logger(Class.name)` per service that throws, `warn` for not-found, with ids.
 - `src/common` pure helpers throw `Error` with only a snake_case code (`cents_invalid`, `percent_invalid`, `trust_score_invalid`, `iana_timezone_invalid`) and never log; logging stays in callers.
 - No barrel files anywhere: import the specific file from `src/common` with an explicit `.js` extension.
-- Service specs use `Test.createTestingModule` with `mockDeep<XDb>()` (`vitest-mock-extended`) as the db provider. `unplugin-swc` + `@swc/core` in `vitest.config.ts` emit decorator metadata (swc `target: 'es2024'` because swc rejects `es2025`). Helper specs in `src/common` stay plain.
+- Service specs use `Test.createTestingModule` with `mockDeep<XDb>()` (`vitest-mock-extended`) as the db provider. Decorator metadata for Nest DI comes from `emitDecoratorMetadata` in `tsconfig.json`; Vitest 5 on Vite 8 emits it natively, so no swc plugin is used. Helper specs in `src/common` stay plain.
 - `tsconfig.json` `target`/`lib` are ES2025.
 
 ### 6.2 Branded types convention

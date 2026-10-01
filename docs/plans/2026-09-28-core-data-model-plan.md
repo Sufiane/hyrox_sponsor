@@ -28,7 +28,7 @@
 - Branded types from `src/common` for entity ids, `NormalizedEmail`, `Cents`, Stripe ids, `TrustScore` and `IanaTimezone`. Casts to a brand happen only in `*.db.ts` files and the `src/common` constructors; services never cast. Service and spec snippets in this plan match the implemented code (branded signatures); `*.db.ts` snippets may still show plain `string`/`number` signatures, the implemented db code uses the brands.
 - Errors are snake_case codes: services throw e.g. `NotFoundException('athlete_not_found')`; the readable detail goes to a Logger line at the throw site (one `private readonly logger = new Logger(Class.name)` per service that throws, `warn` for not-found, including the ids). `src/common` pure helpers throw plain `Error` with only a snake_case code (`cents_invalid`, `percent_invalid`, `trust_score_invalid`, `iana_timezone_invalid`) and never log; logging stays in callers.
 - No barrel files anywhere. Import the specific file from `src/common` with an explicit `.js` extension (e.g. `../common/ids.js`), never `../common` or `../common/index.js`.
-- Service specs use `Test.createTestingModule` with `{ provide: XDb, useValue: mockDeep<XDb>() }` (`vitest-mock-extended`) and `moduleRef.get(XService)`; `unplugin-swc` + `@swc/core` in `vitest.config.ts` emit decorator metadata (swc `target: 'es2024'`, since swc rejects `es2025`). Not-found cases assert the exception class, the snake_case code, and the logged line (`vi.spyOn(Logger.prototype, 'warn')`). Helper specs in `src/common` stay plain (no Nest).
+- Service specs use `Test.createTestingModule` with `{ provide: XDb, useValue: mockDeep<XDb>() }` (`vitest-mock-extended`) and `moduleRef.get(XService)`; decorator metadata comes from `emitDecoratorMetadata` in `tsconfig.json` (Vitest 5 on Vite 8 emits it natively, no swc plugin). Not-found cases assert the exception class, the snake_case code, and the logged line (`vi.spyOn(Logger.prototype, 'warn')`). Helper specs in `src/common` stay plain (no Nest).
 - `tsconfig.json` `target`/`lib` are ES2025.
 - Both `*Service` and `*Db` are registered as providers in their module (CLAUDE.md example shape).
 - Delete dead code rather than commenting it out. No comments restating what the code already says.
@@ -131,7 +131,7 @@ src/
 ```bash
 npm init -y
 npm install @nestjs/common@12 @nestjs/core@12 @nestjs/platform-express@12 helmet reflect-metadata rxjs
-npm install -D typescript @types/node@24 @types/express @nestjs/cli@12 @nestjs/schematics@12 @nestjs/testing@12 vitest vitest-mock-extended unplugin-swc @swc/core eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser
+npm install -D typescript @types/node@24 @types/express @nestjs/cli@12 @nestjs/schematics@12 @nestjs/testing@12 vitest vitest-mock-extended eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser
 ```
 
 - [ ] **Step 2: Pin every dependency to its resolved version and mark the package as ESM**
@@ -225,20 +225,9 @@ export default [
 - [ ] **Step 7: Add `vitest.config.ts`**
 
 ```typescript
-import swc from 'unplugin-swc';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  plugins: [
-    swc.vite({
-      module: { type: 'es6' },
-      jsc: {
-        target: 'es2024',
-        parser: { syntax: 'typescript', decorators: true },
-        transform: { legacyDecorator: true, decoratorMetadata: true },
-      },
-    }),
-  ],
   test: {
     globals: true,
     environment: 'node',
@@ -247,7 +236,7 @@ export default defineConfig({
 });
 ```
 
-`globals: true` makes `describe`/`it`/`expect`/`vi` available in every spec file without an explicit import, matching the mocking style (`vi.spyOn`, `vi.fn()`) used in the specs. The swc plugin is required because Vitest's default esbuild transform does not emit decorator metadata, which Nest DI needs (`Test.createTestingModule` resolves constructor parameters from it). swc's `target` is `es2024` because swc rejects `es2025`, even though `tsconfig.json` targets ES2025. The `"vitest/globals"` entry in `types` (alongside `"node"`) added to `tsconfig.json` in Step 3 is what makes TypeScript recognize those globals.
+`globals: true` makes `describe`/`it`/`expect`/`vi` available in every spec file without an explicit import, matching the mocking style (`vi.spyOn`, `vi.fn()`) used in the specs. Nest DI (`Test.createTestingModule`) resolves constructor parameters from decorator metadata, which Vitest 5 on Vite 8 emits natively from `emitDecoratorMetadata` in `tsconfig.json`, so no swc plugin is needed. The `"vitest/globals"` entry in `types` (alongside `"node"`) added to `tsconfig.json` in Step 3 is what makes TypeScript recognize those globals.
 
 - [ ] **Step 8: Add minimal `src/app.module.ts` and `src/main.ts`**
 
