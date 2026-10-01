@@ -1,6 +1,6 @@
 import { BidService } from './bid.service.js';
 import { BidDb } from './bid.db.js';
-import type { AuctionId } from '../common/index.js';
+import type { AuctionId } from '../common/ids.js';
 
 describe('BidService', () => {
   describe('getLeadingBid', () => {

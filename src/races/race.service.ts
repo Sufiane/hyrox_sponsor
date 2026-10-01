@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { RaceId } from '../common/index.js';
+import type { RaceId } from '../common/ids.js';
 import { RaceDb } from './race.db.js';
 
 type RaceRecord = NonNullable<Awaited<ReturnType<RaceDb['findById']>>>;

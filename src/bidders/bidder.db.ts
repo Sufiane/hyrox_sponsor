@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { NormalizedEmail } from '../common/index.js';
+import type { NormalizedEmail } from '../common/email.js';
 import { Bidder } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 

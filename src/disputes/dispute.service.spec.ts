@@ -1,6 +1,6 @@
 import { DisputeService } from './dispute.service.js';
 import { DisputeDb } from './dispute.db.js';
-import type { AuctionId } from '../common/index.js';
+import type { AuctionId } from '../common/ids.js';
 
 function buildService(dispute: { id: string; status: string } | null): DisputeService {
   const db = {

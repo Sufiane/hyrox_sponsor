@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { AthleteId } from '../common/index.js';
+import type { AthleteId } from '../common/ids.js';
 import { StrikeDb } from './strike.db.js';
 import { TrustScoreEventDb } from './trust-score-event.db.js';
 

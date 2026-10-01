@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { AuctionService } from './auction.service.js';
 import { AuctionDb } from './auction.db.js';
-import type { AuctionId } from '../common/index.js';
+import type { AuctionId } from '../common/ids.js';
 
 describe('AuctionService', () => {
   describe('getById', () => {

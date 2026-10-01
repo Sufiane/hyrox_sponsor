@@ -1,6 +1,6 @@
 import { RaceEntryService } from './race-entry.service.js';
 import { RaceEntryDb } from './race-entry.db.js';
-import type { AthleteId, RaceId } from '../common/index.js';
+import type { AthleteId, RaceId } from '../common/ids.js';
 
 describe('RaceEntryService', () => {
   describe('isVerified', () => {

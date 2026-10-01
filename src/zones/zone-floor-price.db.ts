@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { BodyZone } from '@prisma/client';
-import { cents } from '../common/index.js';
-import type { AthleteId, Cents } from '../common/index.js';
+import { cents } from '../common/money.js';
+import type { AthleteId } from '../common/ids.js';
+import type { Cents } from '../common/money.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()

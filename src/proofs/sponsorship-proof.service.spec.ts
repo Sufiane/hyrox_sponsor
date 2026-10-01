@@ -1,6 +1,6 @@
 import { SponsorshipProofService } from './sponsorship-proof.service.js';
 import { SponsorshipProofDb } from './sponsorship-proof.db.js';
-import type { AuctionId } from '../common/index.js';
+import type { AuctionId } from '../common/ids.js';
 
 describe('SponsorshipProofService', () => {
   describe('getByAuctionId', () => {

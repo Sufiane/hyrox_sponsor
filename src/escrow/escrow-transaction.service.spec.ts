@@ -1,6 +1,6 @@
 import { EscrowTransactionService } from './escrow-transaction.service.js';
 import { EscrowTransactionDb } from './escrow-transaction.db.js';
-import type { BidId } from '../common/index.js';
+import type { BidId } from '../common/ids.js';
 
 function buildService(latest: { id: string; type: string } | null): EscrowTransactionService {
   const db = {

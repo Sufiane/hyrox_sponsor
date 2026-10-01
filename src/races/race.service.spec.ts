@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { RaceService } from './race.service.js';
 import { RaceDb } from './race.db.js';
-import type { RaceId } from '../common/index.js';
+import type { RaceId } from '../common/ids.js';
 
 describe('RaceService', () => {
   describe('getById', () => {

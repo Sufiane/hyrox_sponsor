@@ -1,6 +1,6 @@
 import { ZoneFloorPriceService } from './zone-floor-price.service.js';
 import { ZoneFloorPriceDb } from './zone-floor-price.db.js';
-import type { AthleteId } from '../common/index.js';
+import type { AthleteId } from '../common/ids.js';
 
 describe('ZoneFloorPriceService', () => {
   describe('getFloorPriceCents', () => {

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { AthleteId, RaceId } from '../common/index.js';
+import type { AthleteId, RaceId } from '../common/ids.js';
 import { RaceEntry } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 

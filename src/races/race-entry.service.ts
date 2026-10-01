@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { AthleteId, RaceId } from '../common/index.js';
+import type { AthleteId, RaceId } from '../common/ids.js';
 import { RaceEntryDb } from './race-entry.db.js';
 
 const VERIFICATION_STATUS = {

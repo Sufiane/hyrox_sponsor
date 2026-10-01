@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { AthleteService } from './athlete.service.js';
 import { AthleteDb } from './athlete.db.js';
-import type { AthleteId } from '../common/index.js';
+import type { AthleteId } from '../common/ids.js';
 
 describe('AthleteService', () => {
   describe('getById', () => {

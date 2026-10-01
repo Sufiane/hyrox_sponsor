@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { AthleteId } from '../common/index.js';
+import type { AthleteId } from '../common/ids.js';
 import { TrustScoreEvent } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 
