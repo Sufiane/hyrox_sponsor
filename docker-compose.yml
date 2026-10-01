@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: hyrox
+      POSTGRES_PASSWORD: hyrox
+      POSTGRES_DB: hyrox_sponsor
+    ports:
+      - '5435:5432'
+    volumes:
+      - hyrox_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  hyrox_postgres_data:
