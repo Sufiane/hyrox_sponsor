@@ -282,7 +282,15 @@ exists now purely as the FK target other entities need.
   declares `const VERIFICATION_STATUS = { PENDING: 'PENDING', VERIFIED: 'VERIFIED', REJECTED: 'REJECTED' } as const;`
   and compares against `VERIFICATION_STATUS.VERIFIED`.
 
-### 6.1 Branded types convention
+### 6.1 Error codes, logging, imports and tests
+
+- Errors are snake_case codes (`NotFoundException('athlete_not_found')`). The readable detail goes to a Logger line at the throw site: one `private readonly logger = new Logger(Class.name)` per service that throws, `warn` for not-found, with ids.
+- `src/common` pure helpers throw `Error` with only a snake_case code (`cents_invalid`, `percent_invalid`, `trust_score_invalid`, `iana_timezone_invalid`) and never log; logging stays in callers.
+- No barrel files anywhere: import the specific file from `src/common` with an explicit `.js` extension.
+- Service specs use `Test.createTestingModule` with `mockDeep<XDb>()` (`vitest-mock-extended`) as the db provider. `unplugin-swc` + `@swc/core` in `vitest.config.ts` emit decorator metadata (swc `target: 'es2024'` because swc rejects `es2025`). Helper specs in `src/common` stay plain.
+- `tsconfig.json` `target`/`lib` are ES2025.
+
+### 6.2 Branded types convention
 
 Domain scalars are branded types (`Brand<T, Name>` in `src/common/brand.ts`) so a plain `string`/`number` cannot be passed where an id, email or money amount is required. `src/common` never imports `@prisma/client`.
 
@@ -293,7 +301,7 @@ Domain scalars are branded types (`Brand<T, Name>` in `src/common/brand.ts`) so 
 - `TrustScore` with `trustScore(value)` (integer 0..100).
 - `IanaTimezone` with `ianaTimezone(value)`.
 
-`Cents`, `TrustScore` and `IanaTimezone` validate at construction and throw on invalid input.
+`Cents`, `TrustScore` and `IanaTimezone` validate at construction and throw `Error` with a snake_case code on invalid input.
 
 Casting rule: only `*.db.ts` files and the `src/common` constructors cast to a brand. Services never use `as` to a brand; they receive branded values from callers or the db layer, or build them through the `src/common` constructors. Prisma record types are returned as-is (no mapping layer), so record fields (e.g. `TrustScoreEvent.oldValue`, `Race.timezone`) stay unbranded; a brand appears only where a db method returns a scalar.
 
@@ -362,5 +370,6 @@ implementation starts:
 - Auction scheduling job (HYR-8) — only the indexed fields it will query exist.
 - Bid placement business logic, increment validation, row-locking strategy.
 - Stripe integration code (webhooks, PaymentIntent creation/capture/void calls).
+- CORS, `ValidationPipe` and rate limiting (throttler) are required in HYR-3 (no controllers exist in this ticket); helmet is added now.
 - Any controllers, DTOs, or HTTP surface beyond minimal reads to prove the
   schema.

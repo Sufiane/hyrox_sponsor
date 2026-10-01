@@ -35,3 +35,10 @@ is a regression to investigate.
 ## Branded types
 
 Domain scalars (entity ids, `NormalizedEmail`, `Cents`, Stripe ids, `TrustScore`, `IanaTimezone`) are branded types living in `src/common`, which never imports `@prisma/client`. Validating constructors (`cents()`, `trustScore()`, `ianaTimezone()`, `normalizeEmail()`) build them. Only `*.db.ts` files and these constructors cast to a brand; services never do.
+
+## Conventions
+
+- **Error codes and logging**: services throw snake_case codes (`NotFoundException('athlete_not_found')`) and log the readable detail with a per-service `Logger` at the throw site (`warn` for not-found, with ids). `src/common` helpers throw `Error` with only a code (`cents_invalid`, ...) and never log; callers log.
+- **No barrel files**: import the specific file with an explicit `.js` extension (`../common/ids.js`).
+- **Tests**: service specs use `Test.createTestingModule` with `mockDeep<XDb>()` from `vitest-mock-extended` as the db provider; `unplugin-swc` provides decorator metadata (swc target `es2024`). Helper specs in `src/common` are plain.
+- TypeScript targets ES2025.

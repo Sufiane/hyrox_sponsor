@@ -25,7 +25,11 @@
 - Project is native ESM: `package.json` has `"type": "module"`, `tsconfig.json` uses `module`/`moduleResolution`: `NodeNext`. Every relative import (`./foo`, `../foo`) in source and test files must carry an explicit `.js` extension (Node ESM resolution requirement) — package imports (`@nestjs/common`, `@prisma/client`, `vitest`, etc.) are unaffected.
 - NestJS packages pinned to v12 (exact resolved patch version from `package-lock.json`, per the pinning rule above).
 - `*.service.ts`/`*.usecase.ts` files must never import `@prisma/client` — only `*.db.ts` files may. Enforced by `dependency-cruiser`.
-- Branded types from `src/common` for entity ids, `NormalizedEmail`, `Cents`, Stripe ids, `TrustScore` and `IanaTimezone`. Casts to a brand happen only in `*.db.ts` files and the `src/common` constructors; services never cast. Code snippets later in this plan (bidder, races, escrow, zones, trust) predate this convention and show plain `string`/`number` signatures; the implemented code uses the brands.
+- Branded types from `src/common` for entity ids, `NormalizedEmail`, `Cents`, Stripe ids, `TrustScore` and `IanaTimezone`. Casts to a brand happen only in `*.db.ts` files and the `src/common` constructors; services never cast. Service and spec snippets in this plan match the implemented code (branded signatures); `*.db.ts` snippets may still show plain `string`/`number` signatures, the implemented db code uses the brands.
+- Errors are snake_case codes: services throw e.g. `NotFoundException('athlete_not_found')`; the readable detail goes to a Logger line at the throw site (one `private readonly logger = new Logger(Class.name)` per service that throws, `warn` for not-found, including the ids). `src/common` pure helpers throw plain `Error` with only a snake_case code (`cents_invalid`, `percent_invalid`, `trust_score_invalid`, `iana_timezone_invalid`) and never log; logging stays in callers.
+- No barrel files anywhere. Import the specific file from `src/common` with an explicit `.js` extension (e.g. `../common/ids.js`), never `../common` or `../common/index.js`.
+- Service specs use `Test.createTestingModule` with `{ provide: XDb, useValue: mockDeep<XDb>() }` (`vitest-mock-extended`) and `moduleRef.get(XService)`; `unplugin-swc` + `@swc/core` in `vitest.config.ts` emit decorator metadata (swc `target: 'es2024'`, since swc rejects `es2025`). Not-found cases assert the exception class, the snake_case code, and the logged line (`vi.spyOn(Logger.prototype, 'warn')`). Helper specs in `src/common` stay plain (no Nest).
+- `tsconfig.json` `target`/`lib` are ES2025.
 - Both `*Service` and `*Db` are registered as providers in their module (CLAUDE.md example shape).
 - Delete dead code rather than commenting it out. No comments restating what the code already says.
 - Comments only for genuinely non-obvious "why" — most tasks in this plan need none.
@@ -126,8 +130,8 @@ src/
 
 ```bash
 npm init -y
-npm install @nestjs/common@12 @nestjs/core@12 @nestjs/platform-express@12 reflect-metadata rxjs
-npm install -D typescript @types/node@24 @types/express @nestjs/cli@12 @nestjs/schematics@12 @nestjs/testing@12 vitest eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser
+npm install @nestjs/common@12 @nestjs/core@12 @nestjs/platform-express@12 helmet reflect-metadata rxjs
+npm install -D typescript @types/node@24 @types/express @nestjs/cli@12 @nestjs/schematics@12 @nestjs/testing@12 vitest vitest-mock-extended unplugin-swc @swc/core eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser
 ```
 
 - [ ] **Step 2: Pin every dependency to its resolved version and mark the package as ESM**
@@ -136,6 +140,9 @@ Read the resolved versions out of the generated `package-lock.json` and rewrite 
 
 ```json
 {
+  "name": "hyrox-sponsor-api",
+  "version": "0.0.0",
+  "private": true,
   "type": "module",
   "main": "dist/main.js"
 }
@@ -148,8 +155,8 @@ Read the resolved versions out of the generated `package-lock.json` and rewrite 
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "target": "ES2023",
-    "lib": ["ES2023"],
+    "target": "ES2025",
+    "lib": ["ES2025"],
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
@@ -218,9 +225,20 @@ export default [
 - [ ] **Step 7: Add `vitest.config.ts`**
 
 ```typescript
+import swc from 'unplugin-swc';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  plugins: [
+    swc.vite({
+      module: { type: 'es6' },
+      jsc: {
+        target: 'es2024',
+        parser: { syntax: 'typescript', decorators: true },
+        transform: { legacyDecorator: true, decoratorMetadata: true },
+      },
+    }),
+  ],
   test: {
     globals: true,
     environment: 'node',
@@ -229,7 +247,7 @@ export default defineConfig({
 });
 ```
 
-`globals: true` makes `describe`/`it`/`expect`/`vi` available in every spec file without an explicit import, matching the mocking style (`vi.fn()`) used throughout this plan. The `"vitest/globals"` entry in `types` (alongside `"node"`) added to `tsconfig.json` in Step 3 is what makes TypeScript recognize those globals.
+`globals: true` makes `describe`/`it`/`expect`/`vi` available in every spec file without an explicit import, matching the mocking style (`vi.spyOn`, `vi.fn()`) used in the specs. The swc plugin is required because Vitest's default esbuild transform does not emit decorator metadata, which Nest DI needs (`Test.createTestingModule` resolves constructor parameters from it). swc's `target` is `es2024` because swc rejects `es2025`, even though `tsconfig.json` targets ES2025. The `"vitest/globals"` entry in `types` (alongside `"node"`) added to `tsconfig.json` in Step 3 is what makes TypeScript recognize those globals.
 
 - [ ] **Step 8: Add minimal `src/app.module.ts` and `src/main.ts`**
 
@@ -247,13 +265,15 @@ export class AppModule {}
 // src/main.ts
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
+  app.use(helmet());
   app.enableShutdownHooks();
-  await app.listen(3000);
+  await app.listen(Number(process.env.PORT ?? 3000));
 }
 
 bootstrap().catch((error: unknown) => {
@@ -320,7 +340,7 @@ services:
       POSTGRES_PASSWORD: hyrox
       POSTGRES_DB: hyrox_sponsor
     ports:
-      - '5432:5432'
+      - '5435:5432'
     volumes:
       - hyrox_postgres_data:/var/lib/postgresql/data
 
@@ -331,7 +351,8 @@ volumes:
 - [ ] **Step 4: Add `.env.example`**
 
 ```
-DATABASE_URL="postgresql://hyrox:hyrox@localhost:5432/hyrox_sponsor?schema=public"
+DATABASE_URL="postgresql://hyrox:hyrox@localhost:5435/hyrox_sponsor?schema=public"
+PORT=3000
 ```
 
 Copy it to `.env` locally (not committed — already covered by the existing `.gitignore`'s `.env` rule).
@@ -567,30 +588,65 @@ Expected: the schema for this task is present in `20260929090000_init`.
 
 ```typescript
 // src/athletes/athlete.service.spec.ts
-import { NotFoundException } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { type MockInstance } from 'vitest';
+import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { AthleteService } from './athlete.service.js';
 import { AthleteDb } from './athlete.db.js';
+import type { AthleteId } from '../common/ids.js';
 
 describe('AthleteService', () => {
+  let db: DeepMockProxy<AthleteDb>;
+  let service: AthleteService;
+
+  beforeEach(async () => {
+    db = mockDeep<AthleteDb>();
+    const moduleRef = await Test.createTestingModule({
+      providers: [AthleteService, { provide: AthleteDb, useValue: db }],
+    }).compile();
+    service = moduleRef.get(AthleteService);
+  });
+
   describe('getById', () => {
     describe('when the athlete exists', () => {
-      it('returns the athlete', async () => {
-        const athlete = { id: 'athlete-1', name: 'Jamie Lee' };
-        const db = { findById: vi.fn().mockResolvedValue(athlete) } as unknown as AthleteDb;
-        const service = new AthleteService(db);
+      const athlete = { id: 'athlete-1', name: 'Jamie Lee' };
 
-        const result = await service.getById('athlete-1');
+      beforeEach(() => {
+        db.findById.mockResolvedValue(athlete as never);
+      });
+
+      it('returns the athlete', async () => {
+        const result = await service.getById('athlete-1' as AthleteId);
 
         expect(result).toEqual(athlete);
       });
     });
 
     describe('when the athlete does not exist', () => {
-      it('throws NotFoundException', async () => {
-        const db = { findById: vi.fn().mockResolvedValue(null) } as unknown as AthleteDb;
-        const service = new AthleteService(db);
+      let warn: MockInstance;
 
-        await expect(service.getById('missing')).rejects.toThrow(NotFoundException);
+      beforeEach(() => {
+        db.findById.mockResolvedValue(null);
+        warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      });
+
+      afterEach(() => {
+        warn.mockRestore();
+      });
+
+      it('throws NotFoundException', async () => {
+        await expect(service.getById('missing' as AthleteId)).rejects.toThrow(NotFoundException);
+      });
+
+      it('throws the athlete_not_found code', async () => {
+        await expect(service.getById('missing' as AthleteId)).rejects.toThrow('athlete_not_found');
+      });
+
+      it('logs the missing id', async () => {
+        await service.getById('missing' as AthleteId).catch(() => undefined);
+
+        expect(warn).toHaveBeenCalledWith('Athlete missing not found');
       });
     });
   });
@@ -622,19 +678,25 @@ export class AthleteDb {
 - [ ] **Step 6: Implement `athlete.service.ts`**
 
 ```typescript
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Athlete } from '@prisma/client';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import type { AthleteId } from '../common/ids.js';
 import { AthleteDb } from './athlete.db.js';
+
+type AthleteRecord = NonNullable<Awaited<ReturnType<AthleteDb['findById']>>>;
 
 @Injectable()
 export class AthleteService {
+  private readonly logger = new Logger(AthleteService.name);
+
   constructor(private readonly db: AthleteDb) {}
 
-  async getById(id: string): Promise<Athlete> {
+  async getById(id: AthleteId): Promise<AthleteRecord> {
     const athlete = await this.db.findById(id);
 
     if (!athlete) {
-      throw new NotFoundException(`Athlete ${id} not found`);
+      this.logger.warn(`Athlete ${id} not found`);
+
+      throw new NotFoundException('athlete_not_found');
     }
 
     return athlete;
@@ -721,17 +783,32 @@ Expected: the schema for this task is present in `20260929090000_init`.
 
 ```typescript
 // src/bidders/bidder.service.spec.ts
+import { Test } from '@nestjs/testing';
+import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { BidderService } from './bidder.service.js';
 import { BidderDb } from './bidder.db.js';
 
 describe('BidderService', () => {
+  let db: DeepMockProxy<BidderDb>;
+  let service: BidderService;
+
+  beforeEach(async () => {
+    db = mockDeep<BidderDb>();
+    const moduleRef = await Test.createTestingModule({
+      providers: [BidderService, { provide: BidderDb, useValue: db }],
+    }).compile();
+    service = moduleRef.get(BidderService);
+  });
+
   describe('getOrCreateByEmail', () => {
     describe('when the email is already normalised', () => {
-      it('upserts it unchanged and returns the bidder', async () => {
-        const bidder = { id: 'bidder-1', email: 'brand@example.com' };
-        const db = { upsertByEmail: vi.fn().mockResolvedValue(bidder) } as unknown as BidderDb;
-        const service = new BidderService(db);
+      const bidder = { id: 'bidder-1', email: 'brand@example.com' };
 
+      beforeEach(() => {
+        db.upsertByEmail.mockResolvedValue(bidder as never);
+      });
+
+      it('upserts it unchanged and returns the bidder', async () => {
         const result = await service.getOrCreateByEmail('brand@example.com');
 
         expect(db.upsertByEmail).toHaveBeenCalledWith('brand@example.com');
@@ -740,10 +817,11 @@ describe('BidderService', () => {
     });
 
     describe('when the email has mixed case and surrounding whitespace', () => {
-      it('upserts the trimmed lowercase email', async () => {
-        const db = { upsertByEmail: vi.fn().mockResolvedValue({}) } as unknown as BidderDb;
-        const service = new BidderService(db);
+      beforeEach(() => {
+        db.upsertByEmail.mockResolvedValue({} as never);
+      });
 
+      it('upserts the trimmed lowercase email', async () => {
         await service.getOrCreateByEmail('  Jamie@Example.COM ');
 
         expect(db.upsertByEmail).toHaveBeenCalledWith('jamie@example.com');
@@ -787,6 +865,7 @@ export class BidderDb {
 
 ```typescript
 import { Injectable } from '@nestjs/common';
+import { normalizeEmail } from '../common/email.js';
 import { BidderDb } from './bidder.db.js';
 
 type BidderRecord = Awaited<ReturnType<BidderDb['upsertByEmail']>>;
@@ -795,8 +874,8 @@ type BidderRecord = Awaited<ReturnType<BidderDb['upsertByEmail']>>;
 export class BidderService {
   constructor(private readonly db: BidderDb) {}
 
-  getOrCreateByEmail(email: string): Promise<BidderRecord> {
-    return this.db.upsertByEmail(email.trim().toLowerCase());
+  getOrCreateByEmail(rawEmail: string): Promise<BidderRecord> {
+    return this.db.upsertByEmail(normalizeEmail(rawEmail));
   }
 }
 ```
@@ -916,32 +995,44 @@ EOF
 
 ```typescript
 // src/zones/zone-floor-price.service.spec.ts
+import { Test } from '@nestjs/testing';
+import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { ZoneFloorPriceService } from './zone-floor-price.service.js';
 import { ZoneFloorPriceDb } from './zone-floor-price.db.js';
+import type { AthleteId } from '../common/ids.js';
 
 describe('ZoneFloorPriceService', () => {
+  let db: DeepMockProxy<ZoneFloorPriceDb>;
+  let service: ZoneFloorPriceService;
+
+  beforeEach(async () => {
+    db = mockDeep<ZoneFloorPriceDb>();
+    const moduleRef = await Test.createTestingModule({
+      providers: [ZoneFloorPriceService, { provide: ZoneFloorPriceDb, useValue: db }],
+    }).compile();
+    service = moduleRef.get(ZoneFloorPriceService);
+  });
+
   describe('getFloorPriceCents', () => {
     describe('when the athlete has set a floor for the zone', () => {
-      it('returns the stored floor price', async () => {
-        const db = {
-          findByAthleteAndZone: vi.fn().mockResolvedValue({ floorPriceCents: 2500 }),
-        } as unknown as ZoneFloorPriceDb;
-        const service = new ZoneFloorPriceService(db);
+      beforeEach(() => {
+        db.findFloorPriceCents.mockResolvedValue(2500 as never);
+      });
 
-        const result = await service.getFloorPriceCents('athlete-1', 'LEFT_PEC');
+      it('returns the stored floor price', async () => {
+        const result = await service.getFloorPriceCents('athlete-1' as AthleteId, 'LEFT_PEC');
 
         expect(result).toBe(2500);
       });
     });
 
     describe('when the athlete has not set a floor for the zone', () => {
-      it('returns the platform minimum of 1000 cents', async () => {
-        const db = {
-          findByAthleteAndZone: vi.fn().mockResolvedValue(null),
-        } as unknown as ZoneFloorPriceDb;
-        const service = new ZoneFloorPriceService(db);
+      beforeEach(() => {
+        db.findFloorPriceCents.mockResolvedValue(null);
+      });
 
-        const result = await service.getFloorPriceCents('athlete-1', 'LEFT_PEC');
+      it('returns the platform minimum of 1000 cents', async () => {
+        const result = await service.getFloorPriceCents('athlete-1' as AthleteId, 'LEFT_PEC');
 
         expect(result).toBe(1000);
       });
@@ -978,23 +1069,27 @@ export class ZoneFloorPriceDb {
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { BodyZone } from '@prisma/client';
+import { cents } from '../common/money.js';
+import type { AthleteId } from '../common/ids.js';
+import type { Cents } from '../common/money.js';
 import { ZoneFloorPriceDb } from './zone-floor-price.db.js';
 
-const PLATFORM_MINIMUM_FLOOR_PRICE_CENTS = 1000;
+type BodyZoneValue = Parameters<ZoneFloorPriceDb['findFloorPriceCents']>[1];
+
+const PLATFORM_MINIMUM_FLOOR_PRICE_CENTS = cents(1000);
 
 @Injectable()
 export class ZoneFloorPriceService {
   constructor(private readonly db: ZoneFloorPriceDb) {}
 
-  async getFloorPriceCents(athleteId: string, zone: BodyZone): Promise<number> {
-    const floorPrice = await this.db.findByAthleteAndZone(athleteId, zone);
+  async getFloorPriceCents(athleteId: AthleteId, zone: BodyZoneValue): Promise<Cents> {
+    const floorPrice = await this.db.findFloorPriceCents(athleteId, zone);
 
-    if (!floorPrice) {
+    if (floorPrice === null) {
       return PLATFORM_MINIMUM_FLOOR_PRICE_CENTS;
     }
 
-    return floorPrice.floorPriceCents;
+    return floorPrice;
   }
 }
 ```
@@ -1133,30 +1228,65 @@ EOF
 
 ```typescript
 // src/races/race.service.spec.ts
-import { NotFoundException } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { type MockInstance } from 'vitest';
+import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { RaceService } from './race.service.js';
 import { RaceDb } from './race.db.js';
+import type { RaceId } from '../common/ids.js';
 
 describe('RaceService', () => {
+  let db: DeepMockProxy<RaceDb>;
+  let service: RaceService;
+
+  beforeEach(async () => {
+    db = mockDeep<RaceDb>();
+    const moduleRef = await Test.createTestingModule({
+      providers: [RaceService, { provide: RaceDb, useValue: db }],
+    }).compile();
+    service = moduleRef.get(RaceService);
+  });
+
   describe('getById', () => {
     describe('when the race exists', () => {
-      it('returns the race', async () => {
-        const race = { id: 'race-1', name: 'Chicago Hyrox' };
-        const db = { findById: vi.fn().mockResolvedValue(race) } as unknown as RaceDb;
-        const service = new RaceService(db);
+      const race = { id: 'race-1', name: 'Chicago Hyrox' };
 
-        const result = await service.getById('race-1');
+      beforeEach(() => {
+        db.findById.mockResolvedValue(race as never);
+      });
+
+      it('returns the race', async () => {
+        const result = await service.getById('race-1' as RaceId);
 
         expect(result).toEqual(race);
       });
     });
 
     describe('when the race does not exist', () => {
-      it('throws NotFoundException', async () => {
-        const db = { findById: vi.fn().mockResolvedValue(null) } as unknown as RaceDb;
-        const service = new RaceService(db);
+      let warn: MockInstance;
 
-        await expect(service.getById('missing')).rejects.toThrow(NotFoundException);
+      beforeEach(() => {
+        db.findById.mockResolvedValue(null);
+        warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      });
+
+      afterEach(() => {
+        warn.mockRestore();
+      });
+
+      it('throws NotFoundException', async () => {
+        await expect(service.getById('missing' as RaceId)).rejects.toThrow(NotFoundException);
+      });
+
+      it('throws the race_not_found code', async () => {
+        await expect(service.getById('missing' as RaceId)).rejects.toThrow('race_not_found');
+      });
+
+      it('logs the missing id', async () => {
+        await service.getById('missing' as RaceId).catch(() => undefined);
+
+        expect(warn).toHaveBeenCalledWith('Race missing not found');
       });
     });
   });
@@ -1167,49 +1297,56 @@ describe('RaceService', () => {
 
 ```typescript
 // src/races/race-entry.service.spec.ts
+import { Test } from '@nestjs/testing';
+import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { RaceEntryService } from './race-entry.service.js';
 import { RaceEntryDb } from './race-entry.db.js';
+import type { AthleteId, RaceId } from '../common/ids.js';
 
 describe('RaceEntryService', () => {
+  let db: DeepMockProxy<RaceEntryDb>;
+  let service: RaceEntryService;
+
+  beforeEach(async () => {
+    db = mockDeep<RaceEntryDb>();
+    const moduleRef = await Test.createTestingModule({
+      providers: [RaceEntryService, { provide: RaceEntryDb, useValue: db }],
+    }).compile();
+    service = moduleRef.get(RaceEntryService);
+  });
+
   describe('isVerified', () => {
     describe('when no race entry exists', () => {
-      it('returns false', async () => {
-        const db = {
-          findByAthleteAndRace: vi.fn().mockResolvedValue(null),
-        } as unknown as RaceEntryDb;
-        const service = new RaceEntryService(db);
+      beforeEach(() => {
+        db.findByAthleteAndRace.mockResolvedValue(null);
+      });
 
-        const result = await service.isVerified('athlete-1', 'race-1');
+      it('returns false', async () => {
+        const result = await service.isVerified('athlete-1' as AthleteId, 'race-1' as RaceId);
 
         expect(result).toBe(false);
       });
     });
 
     describe('when the race entry is VERIFIED', () => {
-      it('returns true', async () => {
-        const db = {
-          findByAthleteAndRace: vi
-            .fn()
-            .mockResolvedValue({ verificationStatus: 'VERIFIED' }),
-        } as unknown as RaceEntryDb;
-        const service = new RaceEntryService(db);
+      beforeEach(() => {
+        db.findByAthleteAndRace.mockResolvedValue({ verificationStatus: 'VERIFIED' } as never);
+      });
 
-        const result = await service.isVerified('athlete-1', 'race-1');
+      it('returns true', async () => {
+        const result = await service.isVerified('athlete-1' as AthleteId, 'race-1' as RaceId);
 
         expect(result).toBe(true);
       });
     });
 
     describe('when the race entry is PENDING', () => {
-      it('returns false', async () => {
-        const db = {
-          findByAthleteAndRace: vi
-            .fn()
-            .mockResolvedValue({ verificationStatus: 'PENDING' }),
-        } as unknown as RaceEntryDb;
-        const service = new RaceEntryService(db);
+      beforeEach(() => {
+        db.findByAthleteAndRace.mockResolvedValue({ verificationStatus: 'PENDING' } as never);
+      });
 
-        const result = await service.isVerified('athlete-1', 'race-1');
+      it('returns false', async () => {
+        const result = await service.isVerified('athlete-1' as AthleteId, 'race-1' as RaceId);
 
         expect(result).toBe(false);
       });
@@ -1243,19 +1380,25 @@ export class RaceDb {
 
 ```typescript
 // src/races/race.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Race } from '@prisma/client';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import type { RaceId } from '../common/ids.js';
 import { RaceDb } from './race.db.js';
+
+type RaceRecord = NonNullable<Awaited<ReturnType<RaceDb['findById']>>>;
 
 @Injectable()
 export class RaceService {
+  private readonly logger = new Logger(RaceService.name);
+
   constructor(private readonly db: RaceDb) {}
 
-  async getById(id: string): Promise<Race> {
+  async getById(id: RaceId): Promise<RaceRecord> {
     const race = await this.db.findById(id);
 
     if (!race) {
-      throw new NotFoundException(`Race ${id} not found`);
+      this.logger.warn(`Race ${id} not found`);
+
+      throw new NotFoundException('race_not_found');
     }
 
     return race;
@@ -1284,6 +1427,7 @@ export class RaceEntryDb {
 ```typescript
 // src/races/race-entry.service.ts
 import { Injectable } from '@nestjs/common';
+import type { AthleteId, RaceId } from '../common/ids.js';
 import { RaceEntryDb } from './race-entry.db.js';
 
 const VERIFICATION_STATUS = {
@@ -1296,7 +1440,7 @@ const VERIFICATION_STATUS = {
 export class RaceEntryService {
   constructor(private readonly db: RaceEntryDb) {}
 
-  async isVerified(athleteId: string, raceId: string): Promise<boolean> {
+  async isVerified(athleteId: AthleteId, raceId: RaceId): Promise<boolean> {
     const entry = await this.db.findByAthleteAndRace(athleteId, raceId);
 
     if (!entry) {
@@ -1424,30 +1568,65 @@ Expected: the schema for this task is present in `20260929090000_init`.
 
 ```typescript
 // src/auctions/auction.service.spec.ts
-import { NotFoundException } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { type MockInstance } from 'vitest';
+import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { AuctionService } from './auction.service.js';
 import { AuctionDb } from './auction.db.js';
+import type { AuctionId } from '../common/ids.js';
 
 describe('AuctionService', () => {
+  let db: DeepMockProxy<AuctionDb>;
+  let service: AuctionService;
+
+  beforeEach(async () => {
+    db = mockDeep<AuctionDb>();
+    const moduleRef = await Test.createTestingModule({
+      providers: [AuctionService, { provide: AuctionDb, useValue: db }],
+    }).compile();
+    service = moduleRef.get(AuctionService);
+  });
+
   describe('getById', () => {
     describe('when the auction exists', () => {
-      it('returns the auction', async () => {
-        const auction = { id: 'auction-1', zone: 'LEFT_PEC' };
-        const db = { findById: vi.fn().mockResolvedValue(auction) } as unknown as AuctionDb;
-        const service = new AuctionService(db);
+      const auction = { id: 'auction-1', zone: 'LEFT_PEC' };
 
-        const result = await service.getById('auction-1');
+      beforeEach(() => {
+        db.findById.mockResolvedValue(auction as never);
+      });
+
+      it('returns the auction', async () => {
+        const result = await service.getById('auction-1' as AuctionId);
 
         expect(result).toEqual(auction);
       });
     });
 
     describe('when the auction does not exist', () => {
-      it('throws NotFoundException', async () => {
-        const db = { findById: vi.fn().mockResolvedValue(null) } as unknown as AuctionDb;
-        const service = new AuctionService(db);
+      let warn: MockInstance;
 
-        await expect(service.getById('missing')).rejects.toThrow(NotFoundException);
+      beforeEach(() => {
+        db.findById.mockResolvedValue(null);
+        warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      });
+
+      afterEach(() => {
+        warn.mockRestore();
+      });
+
+      it('throws NotFoundException', async () => {
+        await expect(service.getById('missing' as AuctionId)).rejects.toThrow(NotFoundException);
+      });
+
+      it('throws the auction_not_found code', async () => {
+        await expect(service.getById('missing' as AuctionId)).rejects.toThrow('auction_not_found');
+      });
+
+      it('logs the missing id', async () => {
+        await service.getById('missing' as AuctionId).catch(() => undefined);
+
+        expect(warn).toHaveBeenCalledWith('Auction missing not found');
       });
     });
   });
@@ -1479,19 +1658,25 @@ export class AuctionDb {
 - [ ] **Step 6: Implement `auction.service.ts`**
 
 ```typescript
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Auction } from '@prisma/client';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import type { AuctionId } from '../common/ids.js';
 import { AuctionDb } from './auction.db.js';
+
+type AuctionRecord = NonNullable<Awaited<ReturnType<AuctionDb['findById']>>>;
 
 @Injectable()
 export class AuctionService {
+  private readonly logger = new Logger(AuctionService.name);
+
   constructor(private readonly db: AuctionDb) {}
 
-  async getById(id: string): Promise<Auction> {
+  async getById(id: AuctionId): Promise<AuctionRecord> {
     const auction = await this.db.findById(id);
 
     if (!auction) {
-      throw new NotFoundException(`Auction ${id} not found`);
+      this.logger.warn(`Auction ${id} not found`);
+
+      throw new NotFoundException('auction_not_found');
     }
 
     return auction;
@@ -1645,31 +1830,46 @@ EOF
 
 ```typescript
 // src/bids/bid.service.spec.ts
+import { Test } from '@nestjs/testing';
+import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { BidService } from './bid.service.js';
 import { BidDb } from './bid.db.js';
+import type { AuctionId } from '../common/ids.js';
 
 describe('BidService', () => {
+  let db: DeepMockProxy<BidDb>;
+  let service: BidService;
+
+  beforeEach(async () => {
+    db = mockDeep<BidDb>();
+    const moduleRef = await Test.createTestingModule({
+      providers: [BidService, { provide: BidDb, useValue: db }],
+    }).compile();
+    service = moduleRef.get(BidService);
+  });
+
   describe('getLeadingBid', () => {
     describe('when a leading bid exists', () => {
-      it('returns it', async () => {
-        const bid = { id: 'bid-1', status: 'LEADING' };
-        const db = { findLeadingForAuction: vi.fn().mockResolvedValue(bid) } as unknown as BidDb;
-        const service = new BidService(db);
+      const bid = { id: 'bid-1', status: 'LEADING' };
 
-        const result = await service.getLeadingBid('auction-1');
+      beforeEach(() => {
+        db.findLeadingForAuction.mockResolvedValue(bid as never);
+      });
+
+      it('returns it', async () => {
+        const result = await service.getLeadingBid('auction-1' as AuctionId);
 
         expect(result).toEqual(bid);
       });
     });
 
     describe('when no leading bid exists', () => {
-      it('returns null', async () => {
-        const db = {
-          findLeadingForAuction: vi.fn().mockResolvedValue(null),
-        } as unknown as BidDb;
-        const service = new BidService(db);
+      beforeEach(() => {
+        db.findLeadingForAuction.mockResolvedValue(null);
+      });
 
-        const result = await service.getLeadingBid('auction-1');
+      it('returns null', async () => {
+        const result = await service.getLeadingBid('auction-1' as AuctionId);
 
         expect(result).toBeNull();
       });
@@ -1706,14 +1906,16 @@ export class BidDb {
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { Bid } from '@prisma/client';
+import type { AuctionId } from '../common/ids.js';
 import { BidDb } from './bid.db.js';
+
+type BidRecord = Awaited<ReturnType<BidDb['findLeadingForAuction']>>;
 
 @Injectable()
 export class BidService {
   constructor(private readonly db: BidDb) {}
 
-  getLeadingBid(auctionId: string): Promise<Bid | null> {
+  getLeadingBid(auctionId: AuctionId): Promise<BidRecord> {
     return this.db.findLeadingForAuction(auctionId);
   }
 }
@@ -1811,34 +2013,68 @@ Expected: the schema for this task is present in `20260929090000_init`.
 
 ```typescript
 // src/escrow/escrow-transaction.service.spec.ts
+import { Test } from '@nestjs/testing';
+import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { EscrowTransactionService } from './escrow-transaction.service.js';
 import { EscrowTransactionDb } from './escrow-transaction.db.js';
+import type { BidId } from '../common/ids.js';
 
 describe('EscrowTransactionService', () => {
-  describe('hasActiveAuthorization', () => {
-    describe('when an AUTHORIZED transaction exists for the bid', () => {
-      it('returns true', async () => {
-        const db = {
-          findLatestForBid: vi
-            .fn()
-            .mockResolvedValue({ id: 'escrow-1', type: 'AUTHORIZED' }),
-        } as unknown as EscrowTransactionDb;
-        const service = new EscrowTransactionService(db);
+  let db: DeepMockProxy<EscrowTransactionDb>;
+  let service: EscrowTransactionService;
 
-        const result = await service.hasActiveAuthorization('bid-1');
+  beforeEach(async () => {
+    db = mockDeep<EscrowTransactionDb>();
+    const moduleRef = await Test.createTestingModule({
+      providers: [EscrowTransactionService, { provide: EscrowTransactionDb, useValue: db }],
+    }).compile();
+    service = moduleRef.get(EscrowTransactionService);
+  });
+
+  describe('hasActiveAuthorization', () => {
+    describe('when the bid has no escrow transactions', () => {
+      beforeEach(() => {
+        db.findLatestForBid.mockResolvedValue(null);
+      });
+
+      it('returns false', async () => {
+        const result = await service.hasActiveAuthorization('bid-1' as BidId);
+
+        expect(result).toBe(false);
+      });
+    });
+
+    describe('when the latest transaction is AUTHORIZED', () => {
+      beforeEach(() => {
+        db.findLatestForBid.mockResolvedValue({ id: 'escrow-1', type: 'AUTHORIZED' } as never);
+      });
+
+      it('returns true', async () => {
+        const result = await service.hasActiveAuthorization('bid-1' as BidId);
 
         expect(result).toBe(true);
       });
     });
 
-    describe('when no AUTHORIZED transaction exists for the bid', () => {
-      it('returns false', async () => {
-        const db = {
-          findLatestForBid: vi.fn().mockResolvedValue(null),
-        } as unknown as EscrowTransactionDb;
-        const service = new EscrowTransactionService(db);
+    describe('when the latest transaction is VOIDED', () => {
+      beforeEach(() => {
+        db.findLatestForBid.mockResolvedValue({ id: 'escrow-2', type: 'VOIDED' } as never);
+      });
 
-        const result = await service.hasActiveAuthorization('bid-1');
+      it('returns false', async () => {
+        const result = await service.hasActiveAuthorization('bid-1' as BidId);
+
+        expect(result).toBe(false);
+      });
+    });
+
+    describe('when the latest transaction is CAPTURED', () => {
+      beforeEach(() => {
+        db.findLatestForBid.mockResolvedValue({ id: 'escrow-3', type: 'CAPTURED' } as never);
+      });
+
+      it('returns false', async () => {
+        const result = await service.hasActiveAuthorization('bid-1' as BidId);
 
         expect(result).toBe(false);
       });
@@ -1876,13 +2112,14 @@ export class EscrowTransactionDb {
 
 ```typescript
 import { Injectable } from '@nestjs/common';
+import type { BidId } from '../common/ids.js';
 import { EscrowTransactionDb } from './escrow-transaction.db.js';
 
 @Injectable()
 export class EscrowTransactionService {
   constructor(private readonly db: EscrowTransactionDb) {}
 
-  async hasActiveAuthorization(bidId: string): Promise<boolean> {
+  async hasActiveAuthorization(bidId: BidId): Promise<boolean> {
     const latest = await this.db.findLatestForBid(bidId);
 
     return latest?.type === 'AUTHORIZED';
@@ -2006,29 +2243,46 @@ Expected: the schema for this task is present in `20260929090000_init`.
 
 ```typescript
 // src/proofs/sponsorship-proof.service.spec.ts
+import { Test } from '@nestjs/testing';
+import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { SponsorshipProofService } from './sponsorship-proof.service.js';
 import { SponsorshipProofDb } from './sponsorship-proof.db.js';
+import type { AuctionId } from '../common/ids.js';
 
 describe('SponsorshipProofService', () => {
+  let db: DeepMockProxy<SponsorshipProofDb>;
+  let service: SponsorshipProofService;
+
+  beforeEach(async () => {
+    db = mockDeep<SponsorshipProofDb>();
+    const moduleRef = await Test.createTestingModule({
+      providers: [SponsorshipProofService, { provide: SponsorshipProofDb, useValue: db }],
+    }).compile();
+    service = moduleRef.get(SponsorshipProofService);
+  });
+
   describe('getByAuctionId', () => {
     describe('when a proof has been submitted', () => {
-      it('returns it', async () => {
-        const proof = { id: 'proof-1', auctionId: 'auction-1' };
-        const db = { findByAuctionId: vi.fn().mockResolvedValue(proof) } as unknown as SponsorshipProofDb;
-        const service = new SponsorshipProofService(db);
+      const proof = { id: 'proof-1', auctionId: 'auction-1' };
 
-        const result = await service.getByAuctionId('auction-1');
+      beforeEach(() => {
+        db.findByAuctionId.mockResolvedValue(proof as never);
+      });
+
+      it('returns it', async () => {
+        const result = await service.getByAuctionId('auction-1' as AuctionId);
 
         expect(result).toEqual(proof);
       });
     });
 
     describe('when no proof has been submitted', () => {
-      it('returns null', async () => {
-        const db = { findByAuctionId: vi.fn().mockResolvedValue(null) } as unknown as SponsorshipProofDb;
-        const service = new SponsorshipProofService(db);
+      beforeEach(() => {
+        db.findByAuctionId.mockResolvedValue(null);
+      });
 
-        const result = await service.getByAuctionId('auction-1');
+      it('returns null', async () => {
+        const result = await service.getByAuctionId('auction-1' as AuctionId);
 
         expect(result).toBeNull();
       });
@@ -2041,43 +2295,56 @@ describe('SponsorshipProofService', () => {
 
 ```typescript
 // src/disputes/dispute.service.spec.ts
+import { Test } from '@nestjs/testing';
+import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { DisputeService } from './dispute.service.js';
 import { DisputeDb } from './dispute.db.js';
+import type { AuctionId } from '../common/ids.js';
 
 describe('DisputeService', () => {
+  let db: DeepMockProxy<DisputeDb>;
+  let service: DisputeService;
+
+  beforeEach(async () => {
+    db = mockDeep<DisputeDb>();
+    const moduleRef = await Test.createTestingModule({
+      providers: [DisputeService, { provide: DisputeDb, useValue: db }],
+    }).compile();
+    service = moduleRef.get(DisputeService);
+  });
+
   describe('hasOpenDispute', () => {
     describe('when an OPEN dispute exists for the auction', () => {
-      it('returns true', async () => {
-        const db = {
-          findOpenForAuction: vi.fn().mockResolvedValue({ id: 'dispute-1', status: 'OPEN' }),
-        } as unknown as DisputeDb;
-        const service = new DisputeService(db);
+      beforeEach(() => {
+        db.findOpenForAuction.mockResolvedValue({ id: 'dispute-1', status: 'OPEN' } as never);
+      });
 
-        const result = await service.hasOpenDispute('auction-1');
+      it('returns true', async () => {
+        const result = await service.hasOpenDispute('auction-1' as AuctionId);
 
         expect(result).toBe(true);
       });
     });
 
     describe('when an ARBITRATION dispute exists for the auction', () => {
-      it('returns true', async () => {
-        const db = {
-          findOpenForAuction: vi.fn().mockResolvedValue({ id: 'dispute-2', status: 'ARBITRATION' }),
-        } as unknown as DisputeDb;
-        const service = new DisputeService(db);
+      beforeEach(() => {
+        db.findOpenForAuction.mockResolvedValue({ id: 'dispute-2', status: 'ARBITRATION' } as never);
+      });
 
-        const result = await service.hasOpenDispute('auction-1');
+      it('returns true', async () => {
+        const result = await service.hasOpenDispute('auction-1' as AuctionId);
 
         expect(result).toBe(true);
       });
     });
 
     describe('when no open dispute exists for the auction', () => {
-      it('returns false', async () => {
-        const db = { findOpenForAuction: vi.fn().mockResolvedValue(null) } as unknown as DisputeDb;
-        const service = new DisputeService(db);
+      beforeEach(() => {
+        db.findOpenForAuction.mockResolvedValue(null);
+      });
 
-        const result = await service.hasOpenDispute('auction-1');
+      it('returns false', async () => {
+        const result = await service.hasOpenDispute('auction-1' as AuctionId);
 
         expect(result).toBe(false);
       });
@@ -2112,14 +2379,16 @@ export class SponsorshipProofDb {
 ```typescript
 // src/proofs/sponsorship-proof.service.ts
 import { Injectable } from '@nestjs/common';
-import { SponsorshipProof } from '@prisma/client';
+import type { AuctionId } from '../common/ids.js';
 import { SponsorshipProofDb } from './sponsorship-proof.db.js';
+
+type SponsorshipProofRecord = NonNullable<Awaited<ReturnType<SponsorshipProofDb['findByAuctionId']>>>;
 
 @Injectable()
 export class SponsorshipProofService {
   constructor(private readonly db: SponsorshipProofDb) {}
 
-  getByAuctionId(auctionId: string): Promise<SponsorshipProof | null> {
+  getByAuctionId(auctionId: AuctionId): Promise<SponsorshipProofRecord | null> {
     return this.db.findByAuctionId(auctionId);
   }
 }
@@ -2146,13 +2415,14 @@ export class DisputeDb {
 ```typescript
 // src/disputes/dispute.service.ts
 import { Injectable } from '@nestjs/common';
+import type { AuctionId } from '../common/ids.js';
 import { DisputeDb } from './dispute.db.js';
 
 @Injectable()
 export class DisputeService {
   constructor(private readonly db: DisputeDb) {}
 
-  async hasOpenDispute(auctionId: string): Promise<boolean> {
+  async hasOpenDispute(auctionId: AuctionId): Promise<boolean> {
     const dispute = await this.db.findOpenForAuction(auctionId);
 
     return dispute !== null;
@@ -2273,35 +2543,53 @@ Expected: the schema for this task is present in `20260929090000_init`.
 
 ```typescript
 // src/trust/trust.service.spec.ts
+import { Test } from '@nestjs/testing';
+import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { TrustService } from './trust.service.js';
 import { StrikeDb } from './strike.db.js';
 import { TrustScoreEventDb } from './trust-score-event.db.js';
+import type { AthleteId } from '../common/ids.js';
 
 describe('TrustService', () => {
+  let strikeDb: DeepMockProxy<StrikeDb>;
+  let trustScoreEventDb: DeepMockProxy<TrustScoreEventDb>;
+  let service: TrustService;
+
+  beforeEach(async () => {
+    strikeDb = mockDeep<StrikeDb>();
+    trustScoreEventDb = mockDeep<TrustScoreEventDb>();
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        TrustService,
+        { provide: StrikeDb, useValue: strikeDb },
+        { provide: TrustScoreEventDb, useValue: trustScoreEventDb },
+      ],
+    }).compile();
+    service = moduleRef.get(TrustService);
+  });
+
   describe('getActiveStrikeCount', () => {
-    describe('when the athlete has active strikes', () => {
-      it('returns the count of strikes not excluded from counting', async () => {
-        const strikeDb = {
-          countActiveByAthlete: vi.fn().mockResolvedValue(2),
-        } as unknown as StrikeDb;
-        const trustScoreEventDb = {} as TrustScoreEventDb;
-        const service = new TrustService(strikeDb, trustScoreEventDb);
+    describe('when the db reports active strikes', () => {
+      beforeEach(() => {
+        strikeDb.countActiveByAthlete.mockResolvedValue(2);
+      });
 
-        const result = await service.getActiveStrikeCount('athlete-1');
+      // The excluded-from-count filtering lives in the SQL query, which unit tests here do not cover.
+      it('returns the count the db reports', async () => {
+        const result = await service.getActiveStrikeCount('athlete-1' as AthleteId);
 
+        expect(strikeDb.countActiveByAthlete).toHaveBeenCalledWith('athlete-1');
         expect(result).toBe(2);
       });
     });
 
-    describe('when the athlete has no active strikes', () => {
-      it('returns zero', async () => {
-        const strikeDb = {
-          countActiveByAthlete: vi.fn().mockResolvedValue(0),
-        } as unknown as StrikeDb;
-        const trustScoreEventDb = {} as TrustScoreEventDb;
-        const service = new TrustService(strikeDb, trustScoreEventDb);
+    describe('when the db reports no active strikes', () => {
+      beforeEach(() => {
+        strikeDb.countActiveByAthlete.mockResolvedValue(0);
+      });
 
-        const result = await service.getActiveStrikeCount('athlete-1');
+      it('returns zero', async () => {
+        const result = await service.getActiveStrikeCount('athlete-1' as AthleteId);
 
         expect(result).toBe(0);
       });
@@ -2309,15 +2597,14 @@ describe('TrustService', () => {
   });
 
   describe('getScoreHistory', () => {
-    it('delegates to TrustScoreEventDb', async () => {
-      const strikeDb = {} as StrikeDb;
-      const events = [{ id: 'event-1', oldValue: 50, newValue: 45 }];
-      const trustScoreEventDb = {
-        findByAthlete: vi.fn().mockResolvedValue(events),
-      } as unknown as TrustScoreEventDb;
-      const service = new TrustService(strikeDb, trustScoreEventDb);
+    const events = [{ id: 'event-1', oldValue: 50, newValue: 45 }];
 
-      const result = await service.getScoreHistory('athlete-1');
+    beforeEach(() => {
+      trustScoreEventDb.findByAthlete.mockResolvedValue(events as never);
+    });
+
+    it('delegates to TrustScoreEventDb', async () => {
+      const result = await service.getScoreHistory('athlete-1' as AthleteId);
 
       expect(result).toEqual(events);
     });
@@ -2375,9 +2662,13 @@ export class TrustScoreEventDb {
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { TrustScoreEvent } from '@prisma/client';
+import type { AthleteId } from '../common/ids.js';
 import { StrikeDb } from './strike.db.js';
 import { TrustScoreEventDb } from './trust-score-event.db.js';
+
+type TrustScoreEventRecord = Awaited<
+  ReturnType<TrustScoreEventDb['findByAthlete']>
+>[number];
 
 @Injectable()
 export class TrustService {
@@ -2386,11 +2677,11 @@ export class TrustService {
     private readonly trustScoreEventDb: TrustScoreEventDb,
   ) {}
 
-  async getActiveStrikeCount(athleteId: string): Promise<number> {
+  async getActiveStrikeCount(athleteId: AthleteId): Promise<number> {
     return this.strikeDb.countActiveByAthlete(athleteId);
   }
 
-  getScoreHistory(athleteId: string): Promise<TrustScoreEvent[]> {
+  getScoreHistory(athleteId: AthleteId): Promise<TrustScoreEventRecord[]> {
     return this.trustScoreEventDb.findByAthlete(athleteId);
   }
 }
