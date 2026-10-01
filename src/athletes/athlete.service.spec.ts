@@ -1,16 +1,31 @@
 import { NotFoundException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { AthleteService } from './athlete.service.js';
 import { AthleteDb } from './athlete.db.js';
 import type { AthleteId } from '../common/ids.js';
 
 describe('AthleteService', () => {
+  let db: DeepMockProxy<AthleteDb>;
+  let service: AthleteService;
+
+  beforeEach(async () => {
+    db = mockDeep<AthleteDb>();
+    const moduleRef = await Test.createTestingModule({
+      providers: [AthleteService, { provide: AthleteDb, useValue: db }],
+    }).compile();
+    service = moduleRef.get(AthleteService);
+  });
+
   describe('getById', () => {
     describe('when the athlete exists', () => {
-      it('returns the athlete', async () => {
-        const athlete = { id: 'athlete-1', name: 'Jamie Lee' };
-        const db = { findById: vi.fn().mockResolvedValue(athlete) } as unknown as AthleteDb;
-        const service = new AthleteService(db);
+      const athlete = { id: 'athlete-1', name: 'Jamie Lee' };
 
+      beforeEach(() => {
+        db.findById.mockResolvedValue(athlete as never);
+      });
+
+      it('returns the athlete', async () => {
         const result = await service.getById('athlete-1' as AthleteId);
 
         expect(result).toEqual(athlete);
@@ -18,10 +33,11 @@ describe('AthleteService', () => {
     });
 
     describe('when the athlete does not exist', () => {
-      it('throws NotFoundException', async () => {
-        const db = { findById: vi.fn().mockResolvedValue(null) } as unknown as AthleteDb;
-        const service = new AthleteService(db);
+      beforeEach(() => {
+        db.findById.mockResolvedValue(null);
+      });
 
+      it('throws NotFoundException', async () => {
         await expect(service.getById('missing' as AthleteId)).rejects.toThrow(NotFoundException);
       });
     });

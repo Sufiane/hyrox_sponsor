@@ -1,16 +1,28 @@
+import { Test } from '@nestjs/testing';
+import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { RaceEntryService } from './race-entry.service.js';
 import { RaceEntryDb } from './race-entry.db.js';
 import type { AthleteId, RaceId } from '../common/ids.js';
 
 describe('RaceEntryService', () => {
+  let db: DeepMockProxy<RaceEntryDb>;
+  let service: RaceEntryService;
+
+  beforeEach(async () => {
+    db = mockDeep<RaceEntryDb>();
+    const moduleRef = await Test.createTestingModule({
+      providers: [RaceEntryService, { provide: RaceEntryDb, useValue: db }],
+    }).compile();
+    service = moduleRef.get(RaceEntryService);
+  });
+
   describe('isVerified', () => {
     describe('when no race entry exists', () => {
-      it('returns false', async () => {
-        const db = {
-          findByAthleteAndRace: vi.fn().mockResolvedValue(null),
-        } as unknown as RaceEntryDb;
-        const service = new RaceEntryService(db);
+      beforeEach(() => {
+        db.findByAthleteAndRace.mockResolvedValue(null);
+      });
 
+      it('returns false', async () => {
         const result = await service.isVerified('athlete-1' as AthleteId, 'race-1' as RaceId);
 
         expect(result).toBe(false);
@@ -18,14 +30,11 @@ describe('RaceEntryService', () => {
     });
 
     describe('when the race entry is VERIFIED', () => {
-      it('returns true', async () => {
-        const db = {
-          findByAthleteAndRace: vi
-            .fn()
-            .mockResolvedValue({ verificationStatus: 'VERIFIED' }),
-        } as unknown as RaceEntryDb;
-        const service = new RaceEntryService(db);
+      beforeEach(() => {
+        db.findByAthleteAndRace.mockResolvedValue({ verificationStatus: 'VERIFIED' } as never);
+      });
 
+      it('returns true', async () => {
         const result = await service.isVerified('athlete-1' as AthleteId, 'race-1' as RaceId);
 
         expect(result).toBe(true);
@@ -33,14 +42,11 @@ describe('RaceEntryService', () => {
     });
 
     describe('when the race entry is PENDING', () => {
-      it('returns false', async () => {
-        const db = {
-          findByAthleteAndRace: vi
-            .fn()
-            .mockResolvedValue({ verificationStatus: 'PENDING' }),
-        } as unknown as RaceEntryDb;
-        const service = new RaceEntryService(db);
+      beforeEach(() => {
+        db.findByAthleteAndRace.mockResolvedValue({ verificationStatus: 'PENDING' } as never);
+      });
 
+      it('returns false', async () => {
         const result = await service.isVerified('athlete-1' as AthleteId, 'race-1' as RaceId);
 
         expect(result).toBe(false);
