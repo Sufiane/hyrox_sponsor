@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { AthletesModule } from './athletes/athletes.module';
@@ -14,6 +14,7 @@ import { ProofsModule } from './proofs/proofs.module';
 import { DisputesModule } from './disputes/disputes.module';
 import { TrustModule } from './trust/trust.module';
 import { AuthModule } from './auth/auth.module';
+import { DomainErrorFilter } from './common/domain-error.filter';
 import { validateEnv } from './config/env.validation';
 
 @Module({
@@ -33,6 +34,9 @@ import { validateEnv } from './config/env.validation';
     AuthModule,
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_FILTER, useClass: DomainErrorFilter },
+  ],
 })
 export class AppModule {}
