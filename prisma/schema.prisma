@@ -88,6 +88,7 @@ model ZoneFloorPrice {
 model Race {
   id        String   @id @default(cuid())
   name      String
+  nameKey   String   @map("name_key")
   date      DateTime @db.Timestamptz(3)
   timezone  String
   location  String
@@ -96,6 +97,7 @@ model Race {
 
   raceEntries RaceEntry[]
 
+  @@unique([nameKey, date, timezone])
   @@map("races")
 }
 
@@ -107,11 +109,29 @@ enum RaceEntryVerificationStatus {
   @@map("race_entry_verification_status")
 }
 
+enum RaceDivision {
+  SINGLE_OPEN_MEN
+  SINGLE_OPEN_WOMEN
+  SINGLE_PRO_MEN
+  SINGLE_PRO_WOMEN
+  DOUBLES_OPEN_MEN
+  DOUBLES_OPEN_WOMEN
+  DOUBLES_OPEN_MIXED
+  DOUBLES_PRO_MEN
+  DOUBLES_PRO_WOMEN
+  RELAY_MEN
+  RELAY_WOMEN
+  RELAY_MIXED
+
+  @@map("race_division")
+}
+
 model RaceEntry {
   id                      String                      @id @default(cuid())
   athleteId               String                      @map("athlete_id")
   raceId                  String                      @map("race_id")
-  bibNumber               String                      @map("bib_number")
+  division                RaceDivision
+  bibNumber               String?                     @map("bib_number")
   verificationStatus      RaceEntryVerificationStatus @default(PENDING) @map("verification_status")
   verificationDocumentUrl String?                     @map("verification_document_url")
   verifiedAt              DateTime?                   @map("verified_at") @db.Timestamptz(3)
