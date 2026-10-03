@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { cents } from '../common/money.js';
-import type { AthleteId } from '../common/ids.js';
-import type { Cents } from '../common/money.js';
-import { ZoneFloorPriceDb } from './zone-floor-price.db.js';
+import { cents } from '../common/money';
+import type { AthleteId } from '../common/ids';
+import type { Cents } from '../common/money';
+import { ZoneFloorPriceDb } from './zone-floor-price.db';
 
 type BodyZoneValue = Parameters<ZoneFloorPriceDb['findFloorPriceCents']>[1];
 

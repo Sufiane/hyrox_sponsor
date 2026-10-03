@@ -39,6 +39,6 @@ Domain scalars (entity ids, `NormalizedEmail`, `Cents`, Stripe ids, `TrustScore`
 ## Conventions
 
 - **Error codes and logging**: services throw snake_case codes (`NotFoundException('athlete_not_found')`) and log the readable detail with a per-service `Logger` at the throw site (`warn` for not-found, with ids). `src/common` helpers throw `Error` with only a code (`cents_invalid`, ...) and never log; callers log.
-- **No barrel files**: import the specific file with an explicit `.js` extension (`../common/ids.js`).
+- **No barrel files**: import the specific file without an extension (`../common/ids`). `tsc-alias --resolve-full-paths` adds `.js` in `dist` at build time (`moduleResolution: Bundler`).
 - **Tests**: service specs use `Test.createTestingModule` with `mockDeep<XDb>()` from `vitest-mock-extended` as the db provider; decorator metadata comes from `emitDecoratorMetadata` in `tsconfig.json` (Vitest 5 on Vite 8 emits it natively, no swc plugin). Helper specs in `src/common` are plain.
 - TypeScript targets ES2025.

@@ -1,4 +1,4 @@
-import { trustScore } from './trust-score.js';
+import { trustScore } from './trust-score';
 
 describe('trustScore', () => {
   describe('when the value is an integer within 0..100', () => {

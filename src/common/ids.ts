@@ -1,4 +1,4 @@
-import type { Brand } from './brand.js';
+import type { Brand } from './brand';
 
 export type AthleteId = Brand<string, 'AthleteId'>;
 export type RaceId = Brand<string, 'RaceId'>;

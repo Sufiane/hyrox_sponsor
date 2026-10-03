@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import type { NormalizedEmail } from '../common/email.js';
+import type { NormalizedEmail } from '../common/email';
 import { Bidder } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class BidderDb {

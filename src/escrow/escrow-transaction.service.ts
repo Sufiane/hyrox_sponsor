@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { BidId } from '../common/ids.js';
-import { EscrowTransactionDb } from './escrow-transaction.db.js';
+import type { BidId } from '../common/ids';
+import { EscrowTransactionDb } from './escrow-transaction.db';
 
 @Injectable()
 export class EscrowTransactionService {

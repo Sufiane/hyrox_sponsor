@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type { AuctionId } from '../common/ids.js';
-import { AuctionDb } from './auction.db.js';
+import type { AuctionId } from '../common/ids';
+import { AuctionDb } from './auction.db';
 
 type AuctionRecord = NonNullable<Awaited<ReturnType<AuctionDb['findById']>>>;
 

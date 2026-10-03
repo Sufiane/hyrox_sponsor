@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { normalizeEmail } from '../common/email.js';
-import { BidderDb } from './bidder.db.js';
+import { normalizeEmail } from '../common/email';
+import { BidderDb } from './bidder.db';
 
 type BidderRecord = Awaited<ReturnType<BidderDb['upsertByEmail']>>;
 

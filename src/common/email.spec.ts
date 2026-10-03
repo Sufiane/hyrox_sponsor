@@ -1,4 +1,4 @@
-import { normalizeEmail } from './email.js';
+import { normalizeEmail } from './email';
 
 describe('normalizeEmail', () => {
   describe('when the email is already normalised', () => {

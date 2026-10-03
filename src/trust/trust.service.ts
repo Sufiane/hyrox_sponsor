@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import type { AthleteId } from '../common/ids.js';
-import { StrikeDb } from './strike.db.js';
-import { TrustScoreEventDb } from './trust-score-event.db.js';
+import type { AthleteId } from '../common/ids';
+import { StrikeDb } from './strike.db';
+import { TrustScoreEventDb } from './trust-score-event.db';
 
 type TrustScoreEventRecord = Awaited<
   ReturnType<TrustScoreEventDb['findByAthlete']>

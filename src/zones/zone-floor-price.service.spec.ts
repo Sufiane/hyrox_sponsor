@@ -1,8 +1,8 @@
 import { Test } from '@nestjs/testing';
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
-import { ZoneFloorPriceService } from './zone-floor-price.service.js';
-import { ZoneFloorPriceDb } from './zone-floor-price.db.js';
-import type { AthleteId } from '../common/ids.js';
+import { ZoneFloorPriceService } from './zone-floor-price.service';
+import { ZoneFloorPriceDb } from './zone-floor-price.db';
+import type { AthleteId } from '../common/ids';
 
 describe('ZoneFloorPriceService', () => {
   let db: DeepMockProxy<ZoneFloorPriceDb>;

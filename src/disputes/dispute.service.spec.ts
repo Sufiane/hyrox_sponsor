@@ -1,8 +1,8 @@
 import { Test } from '@nestjs/testing';
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
-import { DisputeService } from './dispute.service.js';
-import { DisputeDb } from './dispute.db.js';
-import type { AuctionId } from '../common/ids.js';
+import { DisputeService } from './dispute.service';
+import { DisputeDb } from './dispute.db';
+import type { AuctionId } from '../common/ids';
 
 describe('DisputeService', () => {
   let db: DeepMockProxy<DisputeDb>;

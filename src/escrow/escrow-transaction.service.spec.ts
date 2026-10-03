@@ -1,8 +1,8 @@
 import { Test } from '@nestjs/testing';
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
-import { EscrowTransactionService } from './escrow-transaction.service.js';
-import { EscrowTransactionDb } from './escrow-transaction.db.js';
-import type { BidId } from '../common/ids.js';
+import { EscrowTransactionService } from './escrow-transaction.service';
+import { EscrowTransactionDb } from './escrow-transaction.db';
+import type { BidId } from '../common/ids';
 
 describe('EscrowTransactionService', () => {
   let db: DeepMockProxy<EscrowTransactionDb>;

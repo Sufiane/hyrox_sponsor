@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { AuctionId } from '../common/ids.js';
-import { SponsorshipProofDb } from './sponsorship-proof.db.js';
+import type { AuctionId } from '../common/ids';
+import { SponsorshipProofDb } from './sponsorship-proof.db';
 
 type SponsorshipProofRecord = NonNullable<Awaited<ReturnType<SponsorshipProofDb['findByAuctionId']>>>;
 

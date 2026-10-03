@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { AuctionId } from '../common/ids.js';
-import { BidDb } from './bid.db.js';
+import type { AuctionId } from '../common/ids';
+import { BidDb } from './bid.db';
 
 type BidRecord = Awaited<ReturnType<BidDb['findLeadingForAuction']>>;
 

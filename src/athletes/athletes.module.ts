@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { AthleteDb } from './athlete.db.js';
-import { AthleteService } from './athlete.service.js';
+import { AthleteDb } from './athlete.db';
+import { AthleteService } from './athlete.service';
 
 @Module({
   providers: [AthleteService, AthleteDb],

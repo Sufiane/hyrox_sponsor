@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { AuctionId } from '../common/ids.js';
-import { DisputeDb } from './dispute.db.js';
+import type { AuctionId } from '../common/ids';
+import { DisputeDb } from './dispute.db';
 
 @Injectable()
 export class DisputeService {

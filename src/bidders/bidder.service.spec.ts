@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
-import { BidderService } from './bidder.service.js';
-import { BidderDb } from './bidder.db.js';
+import { BidderService } from './bidder.service';
+import { BidderDb } from './bidder.db';
 
 describe('BidderService', () => {
   let db: DeepMockProxy<BidderDb>;

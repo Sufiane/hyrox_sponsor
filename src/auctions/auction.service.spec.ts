@@ -2,9 +2,9 @@ import { Logger, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { type MockInstance } from 'vitest';
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
-import { AuctionService } from './auction.service.js';
-import { AuctionDb } from './auction.db.js';
-import type { AuctionId } from '../common/ids.js';
+import { AuctionService } from './auction.service';
+import { AuctionDb } from './auction.db';
+import type { AuctionId } from '../common/ids';
 
 describe('AuctionService', () => {
   let db: DeepMockProxy<AuctionDb>;
