@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { SponsorshipProofDb } from './sponsorship-proof.db.js';
-import { SponsorshipProofService } from './sponsorship-proof.service.js';
+import { SponsorshipProofDb } from './sponsorship-proof.db';
+import { SponsorshipProofService } from './sponsorship-proof.service';
 
 @Module({
   providers: [SponsorshipProofService, SponsorshipProofDb],

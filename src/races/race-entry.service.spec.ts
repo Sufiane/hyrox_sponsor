@@ -1,8 +1,8 @@
 import { Test } from '@nestjs/testing';
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
-import { RaceEntryService } from './race-entry.service.js';
-import { RaceEntryDb } from './race-entry.db.js';
-import type { AthleteId, RaceId } from '../common/ids.js';
+import { RaceEntryService } from './race-entry.service';
+import { RaceEntryDb } from './race-entry.db';
+import type { AthleteId, RaceId } from '../common/ids';
 
 describe('RaceEntryService', () => {
   let db: DeepMockProxy<RaceEntryDb>;

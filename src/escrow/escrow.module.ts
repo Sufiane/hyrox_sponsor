@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { EscrowTransactionDb } from './escrow-transaction.db.js';
-import { EscrowTransactionService } from './escrow-transaction.service.js';
+import { EscrowTransactionDb } from './escrow-transaction.db';
+import { EscrowTransactionService } from './escrow-transaction.service';
 
 @Module({
   providers: [EscrowTransactionService, EscrowTransactionDb],

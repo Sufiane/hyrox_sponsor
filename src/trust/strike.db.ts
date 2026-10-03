@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { AthleteId } from '../common/ids.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import type { AthleteId } from '../common/ids';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class StrikeDb {

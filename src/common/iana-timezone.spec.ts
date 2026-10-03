@@ -1,4 +1,4 @@
-import { ianaTimezone } from './iana-timezone.js';
+import { ianaTimezone } from './iana-timezone';
 
 describe('ianaTimezone', () => {
   describe('when the value is a valid IANA timezone', () => {

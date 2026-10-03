@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import type { BidId } from '../common/ids.js';
+import type { BidId } from '../common/ids';
 import { EscrowTransaction } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class EscrowTransactionDb {

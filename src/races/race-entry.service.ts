@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { AthleteId, RaceId } from '../common/ids.js';
-import { RaceEntryDb } from './race-entry.db.js';
+import type { AthleteId, RaceId } from '../common/ids';
+import { RaceEntryDb } from './race-entry.db';
 
 const VERIFICATION_STATUS = {
   PENDING: 'PENDING',

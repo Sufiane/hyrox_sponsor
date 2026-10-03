@@ -1,4 +1,4 @@
-import { addCents, cents, percentOfCents } from './money.js';
+import { addCents, cents, percentOfCents } from './money';
 
 describe('cents', () => {
   describe('when the value is a non-negative integer', () => {

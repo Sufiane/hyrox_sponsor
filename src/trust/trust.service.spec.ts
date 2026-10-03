@@ -1,9 +1,9 @@
 import { Test } from '@nestjs/testing';
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
-import { TrustService } from './trust.service.js';
-import { StrikeDb } from './strike.db.js';
-import { TrustScoreEventDb } from './trust-score-event.db.js';
-import type { AthleteId } from '../common/ids.js';
+import { TrustService } from './trust.service';
+import { StrikeDb } from './strike.db';
+import { TrustScoreEventDb } from './trust-score-event.db';
+import type { AthleteId } from '../common/ids';
 
 describe('TrustService', () => {
   let strikeDb: DeepMockProxy<StrikeDb>;

@@ -2,9 +2,9 @@ import { Logger, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { type MockInstance } from 'vitest';
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
-import { RaceService } from './race.service.js';
-import { RaceDb } from './race.db.js';
-import type { RaceId } from '../common/ids.js';
+import { RaceService } from './race.service';
+import { RaceDb } from './race.db';
+import type { RaceId } from '../common/ids';
 
 describe('RaceService', () => {
   let db: DeepMockProxy<RaceDb>;

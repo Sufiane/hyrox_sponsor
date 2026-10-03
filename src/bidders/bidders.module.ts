@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { BidderDb } from './bidder.db.js';
-import { BidderService } from './bidder.service.js';
+import { BidderDb } from './bidder.db';
+import { BidderService } from './bidder.service';
 
 @Module({
   providers: [BidderService, BidderDb],

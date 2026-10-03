@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { AuctionDb } from './auction.db.js';
-import { AuctionService } from './auction.service.js';
+import { AuctionDb } from './auction.db';
+import { AuctionService } from './auction.service';
 
 @Module({
   providers: [AuctionService, AuctionDb],

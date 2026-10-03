@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import type { AuctionId } from '../common/ids.js';
+import type { AuctionId } from '../common/ids';
 import { Dispute } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class DisputeDb {

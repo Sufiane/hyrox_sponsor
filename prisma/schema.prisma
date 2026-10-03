@@ -25,6 +25,7 @@ model Athlete {
   id                       String    @id @default(cuid())
   name                     String
   email                    String    @unique
+  passwordHash             String    @map("password_hash")
   isAdult                  Boolean   @default(false) @map("is_adult")
   adultAttestedAt          DateTime? @map("adult_attested_at") @db.Timestamptz(3)
   trustScore               Int       @default(50) @map("trust_score")
@@ -39,8 +40,23 @@ model Athlete {
   raceEntries      RaceEntry[]
   strikes          Strike[]
   trustScoreEvents TrustScoreEvent[]
+  refreshTokens    RefreshToken[]
 
   @@map("athletes")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  athleteId String    @map("athlete_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  athlete Athlete @relation(fields: [athleteId], references: [id])
+
+  @@index([athleteId])
+  @@map("refresh_tokens")
 }
 
 model Bidder {
