@@ -8,6 +8,20 @@ describe('ianaTimezone', () => {
     });
   });
 
+  describe('when the value has non-canonical casing', () => {
+    it('returns the canonical casing', () => {
+      expect(ianaTimezone('europe/paris')).toBe('Europe/Paris');
+      expect(ianaTimezone('AMERICA/CHICAGO')).toBe('America/Chicago');
+    });
+  });
+
+  describe('when the value is UTC', () => {
+    it('keeps UTC', () => {
+      expect(ianaTimezone('UTC')).toBe('UTC');
+      expect(ianaTimezone('utc')).toBe('UTC');
+    });
+  });
+
   describe('when the value is not a timezone', () => {
     it('throws', () => {
       expect(() => ianaTimezone('Mars/Olympus')).toThrow(InvalidValueError);

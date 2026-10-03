@@ -3,9 +3,8 @@ import type { AthleteId } from '../common/ids';
 import type { NormalizedEmail } from '../common/email';
 import type { PasswordHash } from '../common/password-hash';
 import { Athlete, Prisma } from '@prisma/client';
+import { UNIQUE_VIOLATION } from '../common/prisma-error-codes';
 import { PrismaService } from '../prisma/prisma.service';
-
-const UNIQUE_VIOLATION = 'P2002';
 
 export type AthleteRow = Athlete & { id: AthleteId };
 export type AthleteWithCredentials = AthleteRow & { passwordHash: PasswordHash };

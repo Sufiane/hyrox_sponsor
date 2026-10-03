@@ -1,6 +1,6 @@
 import { Logger, type ArgumentsHost } from '@nestjs/common';
 import { type MockInstance } from 'vitest';
-import { DomainError, InvalidValueError } from './domain-error';
+import { ConflictError, DomainError, ForbiddenError, InvalidValueError, NotFoundError } from './domain-error';
 import { DomainErrorFilter } from './domain-error.filter';
 
 class UnmappedError extends DomainError {}
@@ -42,6 +42,39 @@ describe('DomainErrorFilter', () => {
     it('logs a warning containing only the code', () => {
       expect(warn).toHaveBeenCalledTimes(1);
       expect(String(warn.mock.calls[0][0])).toContain('email_invalid');
+    });
+  });
+
+  describe('when a NotFoundError is caught', () => {
+    beforeEach(() => {
+      filter.catch(new NotFoundError('athlete_not_found'), host);
+    });
+
+    it('responds 404 with the Not Found body', () => {
+      expect(status).toHaveBeenCalledWith(404);
+      expect(json).toHaveBeenCalledWith({ statusCode: 404, message: 'athlete_not_found', error: 'Not Found' });
+    });
+  });
+
+  describe('when a ForbiddenError is caught', () => {
+    beforeEach(() => {
+      filter.catch(new ForbiddenError('athlete_banned'), host);
+    });
+
+    it('responds 403 with the Forbidden body', () => {
+      expect(status).toHaveBeenCalledWith(403);
+      expect(json).toHaveBeenCalledWith({ statusCode: 403, message: 'athlete_banned', error: 'Forbidden' });
+    });
+  });
+
+  describe('when a ConflictError is caught', () => {
+    beforeEach(() => {
+      filter.catch(new ConflictError('race_entry_date_conflict'), host);
+    });
+
+    it('responds 409 with the Conflict body', () => {
+      expect(status).toHaveBeenCalledWith(409);
+      expect(json).toHaveBeenCalledWith({ statusCode: 409, message: 'race_entry_date_conflict', error: 'Conflict' });
     });
   });
 
