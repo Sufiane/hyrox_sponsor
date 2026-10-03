@@ -1,3 +1,4 @@
+import { InvalidValueError } from './domain-error';
 import { refreshTokenHash } from './refresh-token-hash';
 
 describe('refreshTokenHash', () => {
@@ -11,18 +12,21 @@ describe('refreshTokenHash', () => {
 
   describe('when the length is wrong', () => {
     it('throws refresh_token_hash_invalid', () => {
+      expect(() => refreshTokenHash('a'.repeat(63))).toThrow(InvalidValueError);
       expect(() => refreshTokenHash('a'.repeat(63))).toThrow('refresh_token_hash_invalid');
     });
   });
 
   describe('when the value has uppercase chars', () => {
     it('throws refresh_token_hash_invalid', () => {
+      expect(() => refreshTokenHash('A'.repeat(64))).toThrow(InvalidValueError);
       expect(() => refreshTokenHash('A'.repeat(64))).toThrow('refresh_token_hash_invalid');
     });
   });
 
   describe('when the value has non-hex chars', () => {
     it('throws refresh_token_hash_invalid', () => {
+      expect(() => refreshTokenHash('g'.repeat(64))).toThrow(InvalidValueError);
       expect(() => refreshTokenHash('g'.repeat(64))).toThrow('refresh_token_hash_invalid');
     });
   });

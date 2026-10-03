@@ -1,3 +1,4 @@
+import { InvalidValueError } from './domain-error';
 import { passwordHash } from './password-hash';
 
 describe('passwordHash', () => {
@@ -9,6 +10,7 @@ describe('passwordHash', () => {
 
   describe('when the value does not start with $argon2id$', () => {
     it('throws password_hash_invalid', () => {
+      expect(() => passwordHash('plain-password')).toThrow(InvalidValueError);
       expect(() => passwordHash('plain-password')).toThrow('password_hash_invalid');
     });
   });
