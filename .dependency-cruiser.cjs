@@ -26,6 +26,18 @@ module.exports = {
         path: '^src/prisma/',
       },
     },
+    {
+      name: 'no-aws-sdk-outside-storage-adapter',
+      comment: 'Only the S3 adapter may import the AWS SDK; everything else uses the DocumentStorage port.',
+      severity: 'error',
+      from: {
+        path: '^src/',
+        pathNot: '^src/storage/s3-document-storage\\.ts$',
+      },
+      to: {
+        path: 'node_modules/@aws-sdk',
+      },
+    },
   ],
   options: {
     doNotFollow: {

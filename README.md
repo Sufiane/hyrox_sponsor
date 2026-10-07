@@ -6,7 +6,7 @@ for the data model design.
 ## Local development
 
 1. Copy `.env.example` to `.env`.
-2. `docker compose up -d postgres`
+2. `docker compose up -d postgres minio`
 3. `npm install`
 4. `npx prisma migrate deploy`
 5. `npm run build && npm run lint && npm run lint:arch && npm test`
@@ -51,6 +51,19 @@ is a regression to investigate.
 ## API
 
 - `POST /athletes/:athleteId/race-entries` logs a race. Body: `name`, `date` (ISO datetime with offset), `timezone` (IANA), `location`, `division` (`SINGLE_OPEN_MEN`, ... see `src/races/race-division.ts`). Creates or reuses the `Race` (matched on normalized name, start instant, timezone) and a `PENDING` entry; returns 201. Errors: 400 (`validation_failed` for any body field, `iana_timezone_invalid`, `athlete_id_invalid`), 403 `athlete_banned`, 404 `athlete_not_found`, 409 `race_entry_date_conflict`. The athlete id in the path is a stand-in until auth (HYR-3) supplies it.
+
+## Verification documents
+
+Athletes upload a bib or confirmation document (JPEG, PNG, WebP or PDF, up to 10 MiB) for a race entry. Objects go to a private S3-compatible bucket; only the object key is stored on `RaceEntry`.
+
+- Env vars: `STORAGE_REGION`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, and `STORAGE_ENDPOINT` (set for MinIO, omit for AWS S3). See `.env.example`.
+- Local dev: create the bucket `hyrox-verification-docs` once in the MinIO console at http://localhost:9006 (login `hyrox` / `hyrox-secret`).
+- Endpoints (both need a HYR-3 bearer token and own the entry):
+  - `POST /race-entries/:raceEntryId/verification-document` multipart with `document` (file) and `bibNumber` (1 to 20 chars); 201 `{ raceEntryId, verificationStatus: 'PENDING', submittedAt }`. Errors: 400 `document_missing`, `document_too_large`, `document_type_unsupported`, `validation_failed`; 401 `invalid_token`; 403 `athlete_banned`; 404 `race_entry_not_found`; 409 `race_entry_already_verified`, `race_already_started`, `verification_state_changed`.
+  - `GET /race-entries/:raceEntryId/verification` returns the status view (never the document key).
+- Migrations: the HYR-6 migration hand-writes one rename (`verification_document_url` to `verification_document_key`); run the shadow-database check above and expect an empty migration.
+- HYR-8 gate contract: call `RaceEntryService.assertVerified(raceEntryId)` (throws 404 `race_entry_not_found` / 409 `race_entry_not_verified`) or `isVerifiedById` before creating or opening an auction. There is no DB trigger, so HYR-8's due-auctions query MUST filter `verificationStatus: 'VERIFIED'`.
+- Staff review API and staff auth are HYR-29. `RaceEntryService.listAwaitingReview`, `getDocumentAccess` (300 second signed URL) and `reviewVerification` exist for it.
 
 ## Branded types
 

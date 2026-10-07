@@ -4,7 +4,13 @@ import { validateEnv } from './env.validation';
 
 const secret = 's'.repeat(32);
 const databaseUrl = 'postgresql://user:pass@localhost:5435/db';
-const validEnv = { JWT_SECRET: secret, DATABASE_URL: databaseUrl };
+const storageEnv = {
+  STORAGE_REGION: 'us-east-1',
+  STORAGE_BUCKET: 'docs',
+  STORAGE_ACCESS_KEY_ID: 'key',
+  STORAGE_SECRET_ACCESS_KEY: 'secret',
+};
+const validEnv = { JWT_SECRET: secret, DATABASE_URL: databaseUrl, ...storageEnv };
 
 describe('validateEnv', () => {
   let error: MockInstance;
@@ -71,13 +77,13 @@ describe('validateEnv', () => {
 
   describe('when JWT_SECRET is missing', () => {
     it('throws env_invalid', () => {
-      expect(() => validateEnv({ DATABASE_URL: databaseUrl })).toThrow('env_invalid');
+      expect(() => validateEnv({ DATABASE_URL: databaseUrl, ...storageEnv })).toThrow('env_invalid');
     });
   });
 
   describe('when DATABASE_URL is missing or not a postgres URL', () => {
     it.each([undefined, '', 'mysql://localhost/db', 'localhost:5435'])('throws env_invalid for %j', (url) => {
-      expect(() => validateEnv({ JWT_SECRET: secret, DATABASE_URL: url })).toThrow('env_invalid');
+      expect(() => validateEnv({ ...validEnv, DATABASE_URL: url })).toThrow('env_invalid');
     });
   });
 
@@ -90,6 +96,30 @@ describe('validateEnv', () => {
   describe('when a TTL is not a positive integer', () => {
     it.each(['0', '-5', '1.5', 'abc', ''])('throws env_invalid for %j', (ttl) => {
       expect(() => validateEnv({ ...validEnv, JWT_ACCESS_TTL_SECONDS: ttl })).toThrow('env_invalid');
+    });
+  });
+
+  describe('when a storage variable is missing', () => {
+    it.each(Object.keys(storageEnv))('throws env_invalid without %s', (name) => {
+      const raw: Record<string, unknown> = { ...validEnv };
+
+      delete raw[name];
+
+      expect(() => validateEnv(raw)).toThrow('env_invalid');
+    });
+  });
+
+  describe('when STORAGE_ENDPOINT is set', () => {
+    it('returns it', () => {
+      const env = validateEnv({ ...validEnv, STORAGE_ENDPOINT: 'http://localhost:9005' });
+
+      expect(env.STORAGE_ENDPOINT).toBe('http://localhost:9005');
+    });
+  });
+
+  describe('when STORAGE_ENDPOINT is absent', () => {
+    it('leaves it undefined', () => {
+      expect(validateEnv(validEnv).STORAGE_ENDPOINT).toBeUndefined();
     });
   });
 });

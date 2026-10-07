@@ -1161,6 +1161,7 @@ model RaceEntry {
   bibNumber               String                       @map("bib_number")
   verificationStatus      RaceEntryVerificationStatus  @default(PENDING) @map("verification_status")
   verificationDocumentUrl String?                      @map("verification_document_url")
+  // Renamed to verificationDocumentKey in HYR-6, see docs/specs/2026-10-01-bib-verification-gate-design.md.
   verifiedAt              DateTime?                    @map("verified_at") @db.Timestamptz(3)
   verifiedBy              String?                      @map("verified_by")
   raceDate                DateTime                     @map("race_date") @db.Timestamptz(3)

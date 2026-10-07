@@ -1,0 +1,1 @@
+export const MAX_DOCUMENT_BYTES = 10_485_760;
