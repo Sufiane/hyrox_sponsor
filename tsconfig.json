@@ -13,6 +13,6 @@
     "strict": true,
     "skipLibCheck": true,
     "outDir": "./dist",
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "multer", "vitest/globals"]
   }
 }

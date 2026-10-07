@@ -127,19 +127,21 @@ enum RaceDivision {
 }
 
 model RaceEntry {
-  id                      String                      @id @default(cuid())
-  athleteId               String                      @map("athlete_id")
-  raceId                  String                      @map("race_id")
-  division                RaceDivision
-  bibNumber               String?                     @map("bib_number")
-  verificationStatus      RaceEntryVerificationStatus @default(PENDING) @map("verification_status")
-  verificationDocumentUrl String?                     @map("verification_document_url")
-  verifiedAt              DateTime?                   @map("verified_at") @db.Timestamptz(3)
-  verifiedBy              String?                     @map("verified_by")
-  raceDate                DateTime                    @map("race_date") @db.Timestamptz(3)
-  raceLocalDate           DateTime                    @map("race_local_date") @db.Date
-  createdAt               DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt               DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                          String                      @id @default(cuid())
+  athleteId                   String                      @map("athlete_id")
+  raceId                      String                      @map("race_id")
+  division                    RaceDivision
+  bibNumber                   String?                     @map("bib_number")
+  verificationStatus          RaceEntryVerificationStatus @default(PENDING) @map("verification_status")
+  verificationDocumentKey     String?                     @map("verification_document_key")
+  verificationSubmittedAt     DateTime?                   @map("verification_submitted_at") @db.Timestamptz(3)
+  verificationRejectionReason String?                     @map("verification_rejection_reason")
+  verifiedAt                  DateTime?                   @map("verified_at") @db.Timestamptz(3)
+  verifiedBy                  String?                     @map("verified_by")
+  raceDate                    DateTime                    @map("race_date") @db.Timestamptz(3)
+  raceLocalDate               DateTime                    @map("race_local_date") @db.Date
+  createdAt                   DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                   DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   athlete  Athlete   @relation(fields: [athleteId], references: [id])
   race     Race      @relation(fields: [raceId], references: [id])
@@ -147,6 +149,7 @@ model RaceEntry {
 
   @@unique([athleteId, raceLocalDate])
   @@index([raceId])
+  @@index([verificationStatus, verificationSubmittedAt])
   @@map("race_entries")
 }
 

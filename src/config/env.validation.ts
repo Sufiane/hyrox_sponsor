@@ -1,6 +1,16 @@
 import { Logger } from '@nestjs/common';
 import { Transform, Type, plainToInstance } from 'class-transformer';
-import { IsInt, IsString, Matches, Max, Min, MinLength, validateSync } from 'class-validator';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Matches,
+  Max,
+  Min,
+  MinLength,
+  validateSync,
+} from 'class-validator';
 
 const MIN_SECRET_LENGTH = 32;
 const DEFAULT_ACCESS_TTL_SECONDS = 900;
@@ -43,6 +53,26 @@ export class EnvironmentVariables {
   @IsInt()
   @Min(1)
   REFRESH_TOKEN_TTL_SECONDS: number = DEFAULT_REFRESH_TTL_SECONDS;
+
+  @IsString()
+  @MinLength(1)
+  STORAGE_REGION!: string;
+
+  @IsString()
+  @MinLength(1)
+  STORAGE_BUCKET!: string;
+
+  @IsString()
+  @MinLength(1)
+  STORAGE_ACCESS_KEY_ID!: string;
+
+  @IsString()
+  @MinLength(1)
+  STORAGE_SECRET_ACCESS_KEY!: string;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  STORAGE_ENDPOINT?: string;
 }
 
 export function validateEnv(raw: Record<string, unknown>): EnvironmentVariables {

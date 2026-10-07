@@ -143,6 +143,7 @@ exists now purely as the FK target other entities need.
 - `id`, `athleteId` FK, `raceId` FK, `bibNumber`, `verificationStatus`
   (`PENDING/VERIFIED/REJECTED`), `verificationDocumentUrl`, `verifiedAt`,
   `verifiedBy`
+> Renamed to `verificationDocumentKey` in HYR-6, see `docs/specs/2026-10-01-bib-verification-gate-design.md`.
 - `raceDate` (`timestamptz`) — denormalized copy of `Race.date` at creation time,
   immutable thereafter
 - `raceLocalDate` (`date`) — the race's calendar date in `Race.timezone`,

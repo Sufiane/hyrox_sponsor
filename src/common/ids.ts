@@ -10,12 +10,26 @@ export type RaceEntryId = Brand<string, 'RaceEntryId'>;
 
 const ID_MAX_LENGTH = 64;
 
-export function athleteId(value: string): AthleteId {
+export type StaffId = Brand<string, 'StaffId'>;
+
+function validatedId(value: string, code: string): string {
   const trimmed = value.trim();
 
   if (trimmed.length === 0 || trimmed.length > ID_MAX_LENGTH) {
-    throw new InvalidValueError('athlete_id_invalid');
+    throw new InvalidValueError(code);
   }
 
-  return trimmed as AthleteId;
+  return trimmed;
+}
+
+export function athleteId(value: string): AthleteId {
+  return validatedId(value, 'athlete_id_invalid') as AthleteId;
+}
+
+export function raceEntryId(value: string): RaceEntryId {
+  return validatedId(value, 'race_entry_id_invalid') as RaceEntryId;
+}
+
+export function staffId(value: string): StaffId {
+  return validatedId(value, 'staff_id_invalid') as StaffId;
 }
