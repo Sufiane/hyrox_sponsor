@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BodyZone } from '@prisma/client';
+import type { BodyZone, ZoneFloorPrice } from '@prisma/client';
 import { cents } from '../common/money';
 import type { AthleteId } from '../common/ids';
 import type { Cents } from '../common/money';
@@ -19,5 +19,17 @@ export class ZoneFloorPriceDb {
     }
 
     return cents(row.floorPriceCents);
+  }
+
+  findAllByAthlete(athleteId: AthleteId): Promise<ZoneFloorPrice[]> {
+    return this.prisma.zoneFloorPrice.findMany({ where: { athleteId } });
+  }
+
+  upsert(athleteId: AthleteId, zone: BodyZone, floorPriceCents: Cents): Promise<ZoneFloorPrice> {
+    return this.prisma.zoneFloorPrice.upsert({
+      where: { athleteId_zone: { athleteId, zone } },
+      create: { athleteId, zone, floorPriceCents },
+      update: { floorPriceCents },
+    });
   }
 }
