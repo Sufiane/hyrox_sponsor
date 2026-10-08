@@ -1,0 +1,9 @@
+{
+  "extends": "$app/tsconfig",
+  "compilerOptions": {
+    "strict": true,
+    "types": ["$app/types", "vitest/globals", "@testing-library/jest-dom"]
+  },
+  "include": ["src", "*.ts"],
+  "exclude": ["src/service-worker"]
+}

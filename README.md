@@ -75,3 +75,19 @@ Domain scalars (entity ids, `NormalizedEmail`, `Cents`, Stripe ids, `TrustScore`
 - **No barrel files**: import the specific file without an extension (`../common/ids`). `tsc-alias --resolve-full-paths` adds `.js` in `dist` at build time (`moduleResolution: Bundler`).
 - **Tests**: service specs use `Test.createTestingModule` with `mockDeep<XDb>()` from `vitest-mock-extended` as the db provider; decorator metadata comes from `emitDecoratorMetadata` in `tsconfig.json` (Vitest 5 on Vite 8 emits it natively, no swc plugin). Helper specs in `src/common` are plain.
 - TypeScript targets ES2025.
+
+## Workspaces and body map (HYR-7)
+
+The repo is an npm workspace: the backend stays at the root, with two packages beside it.
+
+- `shared/` (`@hyrox-sponsor/shared`): framework-free zone model. `body-zone.ts` (`BODY_ZONES`, `BodyZone`), `body-zone-labels.ts`, `body-map-geometry.ts` (views, silhouette and region paths, `regionsForZone`). Import from the specific file, e.g. `@hyrox-sponsor/shared/body-zone`.
+- `web/`: SvelteKit + Tailwind + Vitest. Run `npm run -w web dev`, then open `/dev/body-map` for the harness. Checks: `npm run -w web check`, `npm run -w web test`, `npm run -w web build`. Shared: `npm run -w shared test`.
+
+`web/src/lib/body-map/BodyMap.svelte` API (consumed by HYR-27):
+
+- `selected: BodyZone | null` (bindable), single selection; re-clicking keeps it selected.
+- `zoneStates?: Partial<Record<BodyZone, { badge?: string; disabled?: boolean }>>`
+- `disabled?: boolean` for the whole map.
+- `onselect(zone: BodyZone)` callback.
+
+`LEFT_*` is the athlete's own left (viewer's right on the front view). The artwork is a placeholder: replace the path strings in `shared/src/body-map-geometry.ts` to swap it.
