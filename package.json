@@ -5,11 +5,15 @@
   "description": "Hyrox sponsorship auction backend: NestJS, Prisma, PostgreSQL",
   "license": "UNLICENSED",
   "type": "module",
+  "workspaces": [
+    "shared",
+    "web"
+  ],
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json --resolve-full-paths",
     "start": "node dist/main.js",
-    "lint": "eslint \"src/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\" \"shared/src/**/*.ts\" \"web/src/**/*.ts\"",
     "test": "vitest run",
     "lint:arch": "depcruise src --config .dependency-cruiser.cjs"
   },
