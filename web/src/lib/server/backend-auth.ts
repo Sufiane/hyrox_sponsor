@@ -15,10 +15,20 @@ export type BackendAuthResult<T> =
   { ok: true; value: T } | { ok: false; status: number; code: string };
 
 export interface BackendAuth {
-  login(email: string, password: string): Promise<BackendAuthResult<BackendAuthPayload>>;
-  signup(input: SignupInput): Promise<BackendAuthResult<BackendAuthPayload>>;
-  refresh(refreshToken: string): Promise<BackendAuthResult<BackendTokenPayload>>;
-  logout(refreshToken: string): Promise<void>;
+  login(
+    email: string,
+    password: string,
+    clientIp: string | null,
+  ): Promise<BackendAuthResult<BackendAuthPayload>>;
+  signup(
+    input: SignupInput,
+    clientIp: string | null,
+  ): Promise<BackendAuthResult<BackendAuthPayload>>;
+  refresh(
+    refreshToken: string,
+    clientIp: string | null,
+  ): Promise<BackendAuthResult<BackendTokenPayload>>;
+  logout(refreshToken: string, clientIp: string | null): Promise<void>;
 }
 
 export interface BackendAuthDeps {
@@ -31,11 +41,18 @@ async function post<T>(
   path: string,
   body: unknown,
   okStatus: number,
+  clientIp: string | null,
 ): Promise<BackendAuthResult<T>> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+  if (clientIp != null) {
+    headers['X-Forwarded-For'] = clientIp;
+  }
+
   try {
     const response = await deps.fetchImpl(`${deps.baseUrl}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(body),
     });
 
@@ -51,12 +68,14 @@ async function post<T>(
 
 export function createBackendAuth(deps: BackendAuthDeps): BackendAuth {
   return {
-    login: (email, password) => post(deps, '/auth/login', { email, password }, 200),
-    signup: (input) => post(deps, '/auth/signup', input, 201),
-    refresh: (refreshToken) => post(deps, '/auth/refresh', { refreshToken }, 200),
+    login: (email, password, clientIp) =>
+      post(deps, '/auth/login', { email, password }, 200, clientIp),
+    signup: (input, clientIp) => post(deps, '/auth/signup', input, 201, clientIp),
+    refresh: (refreshToken, clientIp) =>
+      post(deps, '/auth/refresh', { refreshToken }, 200, clientIp),
 
-    async logout(refreshToken: string): Promise<void> {
-      await post(deps, '/auth/logout', { refreshToken }, 204);
+    async logout(refreshToken: string, clientIp: string | null): Promise<void> {
+      await post(deps, '/auth/logout', { refreshToken }, 204, clientIp);
     },
   };
 }

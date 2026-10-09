@@ -17,6 +17,8 @@ const DEFAULT_ACCESS_TTL_SECONDS = 900;
 const DEFAULT_REFRESH_TTL_SECONDS = 2_592_000;
 const DEFAULT_PORT = 3000;
 const MAX_PORT = 65_535;
+const DEFAULT_TRUST_PROXY_HOPS = 0;
+const MAX_TRUST_PROXY_HOPS = 10;
 
 export class EnvironmentVariables {
   @IsString()
@@ -28,6 +30,12 @@ export class EnvironmentVariables {
   @Min(1)
   @Max(MAX_PORT)
   PORT: number = DEFAULT_PORT;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(MAX_TRUST_PROXY_HOPS)
+  TRUST_PROXY_HOPS: number = DEFAULT_TRUST_PROXY_HOPS;
 
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string'
