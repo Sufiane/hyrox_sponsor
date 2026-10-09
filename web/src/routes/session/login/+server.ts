@@ -1,5 +1,6 @@
 import type { RequestHandler } from './$types';
+import { resolveClientIp } from '../../../lib/server/client-ip.ts';
 import { sessionHandlers } from '../../../lib/server/session-handlers.app.ts';
 
-export const POST: RequestHandler = ({ request, cookies }) =>
-  sessionHandlers.login(request, cookies);
+export const POST: RequestHandler = ({ request, cookies, getClientAddress }) =>
+  sessionHandlers.login(request, cookies, resolveClientIp(getClientAddress));

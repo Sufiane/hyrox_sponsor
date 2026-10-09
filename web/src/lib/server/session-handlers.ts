@@ -8,10 +8,10 @@ export interface SessionHandlersDeps extends RefreshCookieConfig {
 }
 
 export interface SessionHandlers {
-  login(request: Request, jar: CookieJar): Promise<Response>;
-  signup(request: Request, jar: CookieJar): Promise<Response>;
-  refresh(jar: CookieJar): Promise<Response>;
-  logout(jar: CookieJar): Promise<Response>;
+  login(request: Request, jar: CookieJar, clientIp: string | null): Promise<Response>;
+  signup(request: Request, jar: CookieJar, clientIp: string | null): Promise<Response>;
+  refresh(jar: CookieJar, clientIp: string | null): Promise<Response>;
+  logout(jar: CookieJar, clientIp: string | null): Promise<Response>;
 }
 
 function failure(status: number, code: string): Response {
@@ -82,34 +82,34 @@ export function createSessionHandlers(deps: SessionHandlersDeps): SessionHandler
   }
 
   return {
-    async login(request, jar): Promise<Response> {
+    async login(request, jar, clientIp): Promise<Response> {
       const credentials = parseLogin(await readBody(request));
 
       if (credentials == null) {
         return failure(400, 'validation_failed');
       }
 
-      return grantResponse(await deps.backend.login(...credentials), jar, 200);
+      return grantResponse(await deps.backend.login(...credentials, clientIp), jar, 200);
     },
 
-    async signup(request, jar): Promise<Response> {
+    async signup(request, jar, clientIp): Promise<Response> {
       const input = parseSignup(await readBody(request));
 
       if (input == null) {
         return failure(400, 'validation_failed');
       }
 
-      return grantResponse(await deps.backend.signup(input), jar, 201);
+      return grantResponse(await deps.backend.signup(input, clientIp), jar, 201);
     },
 
-    async refresh(jar): Promise<Response> {
+    async refresh(jar, clientIp): Promise<Response> {
       const token = readRefreshToken(jar);
 
       if (token == null) {
         return failure(401, 'invalid_refresh_token');
       }
 
-      const result = await deps.backend.refresh(token);
+      const result = await deps.backend.refresh(token, clientIp);
 
       if (!result.ok) {
         if (result.status === 401) {
@@ -127,11 +127,11 @@ export function createSessionHandlers(deps: SessionHandlersDeps): SessionHandler
       });
     },
 
-    async logout(jar): Promise<Response> {
+    async logout(jar, clientIp): Promise<Response> {
       const token = readRefreshToken(jar);
 
       if (token != null) {
-        await deps.backend.logout(token);
+        await deps.backend.logout(token, clientIp);
       }
 
       clearRefreshToken(jar);

@@ -23,9 +23,9 @@ Athlete email + password (argon2id), short-lived access JWT, rotating hashed ref
 | `POST /auth/logout` | refresh token in body | 204 |
 | `GET /auth/me` | `Authorization: Bearer <access jwt>` | 200 `{ id, name, email, isAdult }` |
 
-Env: `JWT_SECRET` (min 32 chars, the app refuses to boot otherwise), `JWT_ACCESS_TTL_SECONDS` (default 900), `REFRESH_TOKEN_TTL_SECONDS` (default 2592000), `CORS_ORIGINS` (comma-separated allowlist, default none), `DATABASE_URL` (required, postgres URL), `PORT` (default 3000). All validated at boot.
+Env: `JWT_SECRET` (min 32 chars, the app refuses to boot otherwise), `JWT_ACCESS_TTL_SECONDS` (default 900), `REFRESH_TOKEN_TTL_SECONDS` (default 2592000), `CORS_ORIGINS` (comma-separated allowlist, default none), `DATABASE_URL` (required, postgres URL), `PORT` (default 3000), `TRUST_PROXY_HOPS` (integer 0 to 10, default 0; number of proxies between the client IP the BFF resolved and Nest, counting the BFF itself; never `true`). All validated at boot.
 
-Known tradeoffs: no email verification; `400 email_already_registered` reveals registered emails; `trust proxy` is not set, so behind a proxy the throttler keys on the proxy IP until it is configured at deploy time.
+Known tradeoffs: no email verification; `400 email_already_registered` reveals registered emails; `trust proxy` stays off until `TRUST_PROXY_HOPS` is set, so behind a proxy the throttler keys on the proxy IP (see production notes under Web auth).
 
 ## Hand-written SQL and `prisma migrate dev`
 
@@ -83,7 +83,11 @@ The web app keeps the access token in memory only. The refresh token lives in an
 - `web/src/lib/auth/session.svelte.ts` is the session store (bootstrap on load, single-flight refresh, `navigator.locks` across tabs).
 - `web/src/lib/auth/authed-fetch.ts` wraps `fetch` with the bearer token, a proactive refresh 30 s before expiry and one retry on 401. Use it for every API call.
 - The BFF reads the backend URL from `VITE_API_BASE_URL` and uses a fixed 30-day cookie lifetime matching the backend default.
-- Throttle caveat: the BFF calls Nest server-side, so the 10/min throttle on `/auth/login|signup|refresh` is shared by all users behind the web host until Nest trusts `X-Forwarded-For` (follow-up ticket).
+- Auth throttle (HYR-31): the BFF overwrites `X-Forwarded-For` with SvelteKit's `getClientAddress()` on every `/session/*` call, and Nest trusts `TRUST_PROXY_HOPS` hops so the 10/min throttle on `/auth/login|signup|refresh` is per client IP. Production notes (for HYR-32):
+  - With hops >= 1, do not expose `/auth/*` publicly on the API ingress; a direct caller could spoof `X-Forwarded-For` and bypass the limit.
+  - Hop count must match the real topology (BFF straight to Nest = 1); re-verify after infra changes.
+  - On adapter-node, set `ADDRESS_HEADER` and `XFF_DEPTH` for the web ingress, or `getClientAddress()` returns the ingress IP.
+  - The throttler store is in-memory per API instance, so N replicas allow up to N times the limit.
 
 ## Workspaces and body map (HYR-7)
 

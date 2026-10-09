@@ -123,3 +123,33 @@ describe('validateEnv', () => {
     });
   });
 });
+
+describe('validateEnv TRUST_PROXY_HOPS', () => {
+  beforeEach(() => {
+    vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe('when it is not set', () => {
+    it('defaults to 0', () => {
+      expect(validateEnv(validEnv).TRUST_PROXY_HOPS).toBe(0);
+    });
+  });
+
+  describe('when it is a string integer from 0 to 10', () => {
+    it.each(['0', '1', '10'])('accepts %s as a number', (value) => {
+      expect(validateEnv({ ...validEnv, TRUST_PROXY_HOPS: value }).TRUST_PROXY_HOPS).toBe(
+        Number(value),
+      );
+    });
+  });
+
+  describe('when it is out of range or not an integer', () => {
+    it.each(['-1', '11', '1.5', 'abc', 'true'])('rejects %s', (value) => {
+      expect(() => validateEnv({ ...validEnv, TRUST_PROXY_HOPS: value })).toThrow('env_invalid');
+    });
+  });
+});

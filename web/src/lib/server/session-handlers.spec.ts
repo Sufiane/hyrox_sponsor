@@ -40,6 +40,7 @@ describe('createSessionHandlers', () => {
         const response = await handlers.login(
           jsonRequest({ email: 'a@b.co', password: 'pw' }),
           jar,
+          null,
         );
 
         expect(response.status).toBe(200);
@@ -55,7 +56,11 @@ describe('createSessionHandlers', () => {
         backend.login.mockResolvedValue({ ok: false, status: 401, code: 'invalid_credentials' });
         const jar = createFakeJar();
 
-        const response = await handlers.login(jsonRequest({ email: 'a@b.co', password: 'x' }), jar);
+        const response = await handlers.login(
+          jsonRequest({ email: 'a@b.co', password: 'x' }),
+          jar,
+          null,
+        );
 
         expect(response.status).toBe(401);
         expect(await response.json()).toEqual({
@@ -68,7 +73,7 @@ describe('createSessionHandlers', () => {
 
     describe('when the body is not valid json', () => {
       it('answers 400 validation_failed', async () => {
-        const response = await handlers.login(jsonRequest('{oops'), createFakeJar());
+        const response = await handlers.login(jsonRequest('{oops'), createFakeJar(), null);
 
         expect(response.status).toBe(400);
         expect(await response.json()).toMatchObject({ message: 'validation_failed' });
@@ -78,7 +83,7 @@ describe('createSessionHandlers', () => {
 
     describe('when email or password is not a string', () => {
       it('answers 400 validation_failed', async () => {
-        const response = await handlers.login(jsonRequest({ email: 1 }), createFakeJar());
+        const response = await handlers.login(jsonRequest({ email: 1 }), createFakeJar(), null);
 
         expect(response.status).toBe(400);
         expect(backend.login).not.toHaveBeenCalled();
@@ -101,17 +106,16 @@ describe('createSessionHandlers', () => {
             confirmPassword: 'longenough1',
           }),
           jar,
+          null,
         );
 
         expect(response.status).toBe(201);
         expect(jar.sets[0].value).toBe('secret-refresh');
         expect(JSON.stringify(await response.json())).not.toContain('secret-refresh');
-        expect(backend.signup).toHaveBeenCalledWith({
-          name: 'A',
-          email: 'a@b.co',
-          password: 'longenough1',
-          adultAttested: true,
-        });
+        expect(backend.signup).toHaveBeenCalledWith(
+          { name: 'A', email: 'a@b.co', password: 'longenough1', adultAttested: true },
+          null,
+        );
       });
     });
 
@@ -126,6 +130,7 @@ describe('createSessionHandlers', () => {
         const response = await handlers.signup(
           jsonRequest({ name: 'A', email: 'a@b.co', password: 'longenough1', adultAttested: true }),
           createFakeJar(),
+          null,
         );
 
         expect(response.status).toBe(400);
@@ -137,7 +142,7 @@ describe('createSessionHandlers', () => {
   describe('refresh', () => {
     describe('when there is no cookie', () => {
       it('answers 401 invalid_refresh_token', async () => {
-        const response = await handlers.refresh(createFakeJar());
+        const response = await handlers.refresh(createFakeJar(), null);
 
         expect(response.status).toBe(401);
         expect(await response.json()).toMatchObject({ message: 'invalid_refresh_token' });
@@ -153,9 +158,9 @@ describe('createSessionHandlers', () => {
         });
         const jar = createFakeJar('old');
 
-        const response = await handlers.refresh(jar);
+        const response = await handlers.refresh(jar, null);
 
-        expect(backend.refresh).toHaveBeenCalledWith('old');
+        expect(backend.refresh).toHaveBeenCalledWith('old', null);
         expect(jar.sets[0]).toMatchObject({ value: 'rotated-secret' });
         const body = await response.json();
         expect(body).toEqual({ accessToken: 'new', expiresIn: 900 });
@@ -172,7 +177,7 @@ describe('createSessionHandlers', () => {
         });
         const jar = createFakeJar('old');
 
-        const response = await handlers.refresh(jar);
+        const response = await handlers.refresh(jar, null);
 
         expect(response.status).toBe(401);
         expect(jar.deletes).toHaveLength(1);
@@ -184,7 +189,7 @@ describe('createSessionHandlers', () => {
         backend.refresh.mockResolvedValue({ ok: false, status: 502, code: 'request_failed' });
         const jar = createFakeJar('old');
 
-        const response = await handlers.refresh(jar);
+        const response = await handlers.refresh(jar, null);
 
         expect(response.status).toBe(502);
         expect(jar.deletes).toEqual([]);
@@ -197,9 +202,9 @@ describe('createSessionHandlers', () => {
       it('revokes the token, clears the cookie and answers 204', async () => {
         const jar = createFakeJar('old');
 
-        const response = await handlers.logout(jar);
+        const response = await handlers.logout(jar, null);
 
-        expect(backend.logout).toHaveBeenCalledWith('old');
+        expect(backend.logout).toHaveBeenCalledWith('old', null);
         expect(jar.deletes).toHaveLength(1);
         expect(response.status).toBe(204);
       });
@@ -209,11 +214,68 @@ describe('createSessionHandlers', () => {
       it('still clears and answers 204 without calling the backend', async () => {
         const jar = createFakeJar();
 
-        const response = await handlers.logout(jar);
+        const response = await handlers.logout(jar, null);
 
         expect(backend.logout).not.toHaveBeenCalled();
         expect(jar.deletes).toHaveLength(1);
         expect(response.status).toBe(204);
+      });
+    });
+  });
+
+  describe('client IP forwarding', () => {
+    const CLIENT_IP = '203.0.113.7';
+
+    describe('when a client IP is given', () => {
+      it('passes it to the backend on login', async () => {
+        backend.login.mockResolvedValue({ ok: false, status: 401, code: 'invalid_credentials' });
+
+        await handlers.login(
+          jsonRequest({ email: 'a@b.co', password: 'pw' }),
+          createFakeJar(),
+          CLIENT_IP,
+        );
+
+        expect(backend.login).toHaveBeenCalledWith('a@b.co', 'pw', CLIENT_IP);
+      });
+
+      it('passes it to the backend on signup', async () => {
+        backend.signup.mockResolvedValue({ ok: false, status: 400, code: 'x' });
+
+        await handlers.signup(
+          jsonRequest({ name: 'A', email: 'a@b.co', password: 'longenough1', adultAttested: true }),
+          createFakeJar(),
+          CLIENT_IP,
+        );
+
+        expect(backend.signup).toHaveBeenCalledWith(expect.any(Object), CLIENT_IP);
+      });
+
+      it('passes it to the backend on refresh', async () => {
+        backend.refresh.mockResolvedValue({ ok: false, status: 502, code: 'request_failed' });
+
+        await handlers.refresh(createFakeJar('old'), CLIENT_IP);
+
+        expect(backend.refresh).toHaveBeenCalledWith('old', CLIENT_IP);
+      });
+
+      it('passes it to the backend on logout', async () => {
+        await handlers.logout(createFakeJar('old'), CLIENT_IP);
+
+        expect(backend.logout).toHaveBeenCalledWith('old', CLIENT_IP);
+      });
+    });
+
+    describe('when the login body is malformed', () => {
+      it('never calls the backend', async () => {
+        const response = await handlers.login(
+          jsonRequest({ email: 1 }),
+          createFakeJar(),
+          CLIENT_IP,
+        );
+
+        expect(response.status).toBe(400);
+        expect(backend.login).not.toHaveBeenCalled();
       });
     });
   });
