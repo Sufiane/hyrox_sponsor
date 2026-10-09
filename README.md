@@ -76,6 +76,15 @@ Domain scalars (entity ids, `NormalizedEmail`, `Cents`, Stripe ids, `TrustScore`
 - **Tests**: service specs use `Test.createTestingModule` with `mockDeep<XDb>()` from `vitest-mock-extended` as the db provider; decorator metadata comes from `emitDecoratorMetadata` in `tsconfig.json` (Vitest 5 on Vite 8 emits it natively, no swc plugin). Helper specs in `src/common` are plain.
 - TypeScript targets ES2025.
 
+## Web auth (HYR-30)
+
+The web app keeps the access token in memory only. The refresh token lives in an httpOnly, SameSite=Strict cookie (`hyrox_refresh`, path `/session`) owned by SvelteKit routes that proxy the Nest `/auth/*` endpoints: `POST /session/login`, `/session/signup`, `/session/refresh`, `/session/logout`. The refresh token never appears in a JSON response to the browser. Because these routes need a runtime, the web deploy adapter must be a server adapter, not static.
+
+- `web/src/lib/auth/session.svelte.ts` is the session store (bootstrap on load, single-flight refresh, `navigator.locks` across tabs).
+- `web/src/lib/auth/authed-fetch.ts` wraps `fetch` with the bearer token, a proactive refresh 30 s before expiry and one retry on 401. Use it for every API call.
+- The BFF reads the backend URL from `VITE_API_BASE_URL` and uses a fixed 30-day cookie lifetime matching the backend default.
+- Throttle caveat: the BFF calls Nest server-side, so the 10/min throttle on `/auth/login|signup|refresh` is shared by all users behind the web host until Nest trusts `X-Forwarded-For` (follow-up ticket).
+
 ## Workspaces and body map (HYR-7)
 
 The repo is an npm workspace: the backend stays at the root, with two packages beside it.
