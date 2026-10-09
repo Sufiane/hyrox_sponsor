@@ -30,6 +30,6 @@ import { TokenService } from './token.service';
     RefreshTokenDb,
     JwtAuthGuard,
   ],
-  exports: [JwtAuthGuard, TokenService],
+  exports: [JwtAuthGuard, TokenService, PasswordHasher],
 })
 export class AuthModule {}

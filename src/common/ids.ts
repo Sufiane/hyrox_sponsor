@@ -7,10 +7,10 @@ export type AuctionId = Brand<string, 'AuctionId'>;
 export type BidId = Brand<string, 'BidId'>;
 export type BidderId = Brand<string, 'BidderId'>;
 export type RaceEntryId = Brand<string, 'RaceEntryId'>;
+export type StaffId = Brand<string, 'StaffId'>;
+export type StaffRefreshTokenId = Brand<string, 'StaffRefreshTokenId'>;
 
 const ID_MAX_LENGTH = 64;
-
-export type StaffId = Brand<string, 'StaffId'>;
 
 function validatedId(value: string, code: string): string {
   const trimmed = value.trim();

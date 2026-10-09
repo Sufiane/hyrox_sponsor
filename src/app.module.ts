@@ -14,6 +14,7 @@ import { ProofsModule } from './proofs/proofs.module';
 import { DisputesModule } from './disputes/disputes.module';
 import { TrustModule } from './trust/trust.module';
 import { AuthModule } from './auth/auth.module';
+import { StaffAuthModule } from './staff-auth/staff-auth.module';
 import { DomainErrorFilter } from './common/domain-error.filter';
 import { validateEnv } from './config/env.validation';
 
@@ -32,6 +33,7 @@ import { validateEnv } from './config/env.validation';
     DisputesModule,
     TrustModule,
     AuthModule,
+    StaffAuthModule,
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
   ],
   providers: [

@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsEmail, IsOptional, IsString, Length } from 'class-validator';
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '../password-policy';
 
 export class SignupDto {
   @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
@@ -11,7 +12,7 @@ export class SignupDto {
   email!: string;
 
   @IsString()
-  @Length(10, 128)
+  @Length(PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH)
   password!: string;
 
   @IsOptional()

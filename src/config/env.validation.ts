@@ -15,6 +15,8 @@ import {
 const MIN_SECRET_LENGTH = 32;
 const DEFAULT_ACCESS_TTL_SECONDS = 900;
 const DEFAULT_REFRESH_TTL_SECONDS = 2_592_000;
+const DEFAULT_STAFF_ACCESS_TTL_SECONDS = 900;
+const DEFAULT_STAFF_REFRESH_TTL_SECONDS = 604_800;
 const DEFAULT_PORT = 3000;
 const MAX_PORT = 65_535;
 const DEFAULT_TRUST_PROXY_HOPS = 0;
@@ -63,6 +65,20 @@ export class EnvironmentVariables {
   REFRESH_TOKEN_TTL_SECONDS: number = DEFAULT_REFRESH_TTL_SECONDS;
 
   @IsString()
+  @MinLength(MIN_SECRET_LENGTH)
+  STAFF_JWT_SECRET!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  STAFF_JWT_TTL_SECONDS: number = DEFAULT_STAFF_ACCESS_TTL_SECONDS;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  STAFF_REFRESH_TOKEN_TTL_SECONDS: number = DEFAULT_STAFF_REFRESH_TTL_SECONDS;
+
+  @IsString()
   @MinLength(1)
   STORAGE_REGION!: string;
 
@@ -91,6 +107,12 @@ export function validateEnv(raw: Record<string, unknown>): EnvironmentVariables 
     const invalid = errors.map((error) => error.property).join(', ');
 
     new Logger('Env').error(`Invalid environment variables: ${invalid}`);
+
+    throw new Error('env_invalid');
+  }
+
+  if (env.STAFF_JWT_SECRET === env.JWT_SECRET) {
+    new Logger('Env').error('staff_jwt_secret_must_differ_from_jwt_secret');
 
     throw new Error('env_invalid');
   }

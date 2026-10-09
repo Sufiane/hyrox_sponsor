@@ -10,7 +10,8 @@ const storageEnv = {
   STORAGE_ACCESS_KEY_ID: 'key',
   STORAGE_SECRET_ACCESS_KEY: 'secret',
 };
-const validEnv = { JWT_SECRET: secret, DATABASE_URL: databaseUrl, ...storageEnv };
+const staffSecret = 't'.repeat(32);
+const validEnv = { JWT_SECRET: secret, STAFF_JWT_SECRET: staffSecret, DATABASE_URL: databaseUrl, ...storageEnv };
 
 describe('validateEnv', () => {
   let error: MockInstance;
@@ -51,6 +52,8 @@ describe('validateEnv', () => {
       expect(env).toMatchObject({
         JWT_ACCESS_TTL_SECONDS: 900,
         REFRESH_TOKEN_TTL_SECONDS: 2_592_000,
+        STAFF_JWT_TTL_SECONDS: 900,
+        STAFF_REFRESH_TOKEN_TTL_SECONDS: 604_800,
         PORT: 3000,
         CORS_ORIGINS: [],
       });
@@ -77,7 +80,9 @@ describe('validateEnv', () => {
 
   describe('when JWT_SECRET is missing', () => {
     it('throws env_invalid', () => {
-      expect(() => validateEnv({ DATABASE_URL: databaseUrl, ...storageEnv })).toThrow('env_invalid');
+      expect(() => validateEnv({ STAFF_JWT_SECRET: staffSecret, DATABASE_URL: databaseUrl, ...storageEnv })).toThrow(
+        'env_invalid',
+      );
     });
   });
 
@@ -120,6 +125,46 @@ describe('validateEnv', () => {
   describe('when STORAGE_ENDPOINT is absent', () => {
     it('leaves it undefined', () => {
       expect(validateEnv(validEnv).STORAGE_ENDPOINT).toBeUndefined();
+    });
+  });
+
+  describe('when STAFF_JWT_SECRET is missing', () => {
+    it('throws env_invalid', () => {
+      const raw: Record<string, unknown> = { ...validEnv };
+
+      delete raw.STAFF_JWT_SECRET;
+
+      expect(() => validateEnv(raw)).toThrow('env_invalid');
+    });
+  });
+
+  describe('when STAFF_JWT_SECRET is shorter than 32 chars', () => {
+    it('throws env_invalid', () => {
+      expect(() => validateEnv({ ...validEnv, STAFF_JWT_SECRET: 'short' })).toThrow('env_invalid');
+    });
+  });
+
+  describe('when STAFF_JWT_SECRET equals JWT_SECRET', () => {
+    it('throws env_invalid', () => {
+      expect(() => validateEnv({ ...validEnv, STAFF_JWT_SECRET: secret })).toThrow('env_invalid');
+    });
+
+    it('logs the reason', () => {
+      expect(() => validateEnv({ ...validEnv, STAFF_JWT_SECRET: secret })).toThrow();
+
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('staff_jwt_secret_must_differ_from_jwt_secret'));
+    });
+  });
+
+  describe('when the staff TTLs are set', () => {
+    it('parses them', () => {
+      const env = validateEnv({
+        ...validEnv,
+        STAFF_JWT_TTL_SECONDS: '3600',
+        STAFF_REFRESH_TOKEN_TTL_SECONDS: '7200',
+      });
+
+      expect(env).toMatchObject({ STAFF_JWT_TTL_SECONDS: 3600, STAFF_REFRESH_TOKEN_TTL_SECONDS: 7200 });
     });
   });
 });
