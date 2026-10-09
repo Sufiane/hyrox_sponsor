@@ -59,6 +59,35 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+model StaffMember {
+  id               String    @id @default(cuid())
+  name             String
+  email            String    @unique
+  passwordHash     String    @map("password_hash")
+  isActive         Boolean   @default(true) @map("is_active")
+  tokensValidAfter DateTime? @map("tokens_valid_after") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  refreshTokens StaffRefreshToken[]
+
+  @@map("staff_members")
+}
+
+model StaffRefreshToken {
+  id        String    @id @default(cuid())
+  staffId   String    @map("staff_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  staff StaffMember @relation(fields: [staffId], references: [id])
+
+  @@index([staffId])
+  @@map("staff_refresh_tokens")
+}
+
 model Bidder {
   id               String   @id @default(cuid())
   email            String   @unique

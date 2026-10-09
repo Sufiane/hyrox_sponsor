@@ -15,6 +15,7 @@
     "start": "node dist/main.js",
     "lint": "eslint \"src/**/*.ts\" \"shared/src/**/*.ts\" \"web/src/**/*.ts\"",
     "test": "vitest run",
+    "staff": "node dist/staff-auth/cli/staff-admin.js",
     "lint:arch": "depcruise src --config .dependency-cruiser.cjs"
   },
   "dependencies": {

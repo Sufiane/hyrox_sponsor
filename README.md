@@ -27,6 +27,32 @@ Env: `JWT_SECRET` (min 32 chars, the app refuses to boot otherwise), `JWT_ACCESS
 
 Known tradeoffs: no email verification; `400 email_already_registered` reveals registered emails; `trust proxy` is not set, so behind a proxy the throttler keys on the proxy IP until it is configured at deploy time.
 
+## Staff accounts (HYR-29)
+
+Staff are a separate identity (`staff_members`, `staff_refresh_tokens`) with their own JWT secret. Accounts are managed by CLI only; there is no signup endpoint. Spec: `docs/specs/2026-10-09-staff-auth-design.md`.
+
+```
+npm run build
+npm run staff -- create --email jane@example.com --name "Jane Doe" [--password "<pw>"]
+npm run staff -- set-password --email jane@example.com [--password "<pw>"]
+npm run staff -- deactivate --email jane@example.com
+```
+
+- `--password` is optional (10-128 characters, same rule as athlete signup). When omitted, a random password is generated and printed once; only its argon2id hash is stored.
+- A password passed with `--password` stays in shell history and the process list. Accepted for local use; omit the flag on shared or production hosts.
+- `set-password` and `deactivate` revoke every refresh token of that staff member and invalidate their existing access tokens.
+
+| Route | Auth | Success |
+|---|---|---|
+| `POST /staff/auth/login` | none (5/min/IP) | 200 `{ staff, accessToken, refreshToken, expiresIn }` |
+| `POST /staff/auth/refresh` | refresh token in body (10/min/IP) | 200 `{ accessToken, refreshToken, expiresIn }` (rotates, reuse revokes all) |
+| `POST /staff/auth/logout` | refresh token in body | 204 |
+| `GET /staff/auth/me` | `Authorization: Bearer <staff access jwt>` | 200 `{ id, name, email }` |
+
+Access token 15 min, refresh token 7 days. Staff-only controllers live under `/admin/*`, use `@UseGuards(StaffGuard)` and receive the reviewer via `@CurrentStaffId()`. Athlete and staff tokens are not interchangeable.
+
+Env (required, validated at boot): `STAFF_JWT_SECRET` (min 32 chars, must differ from `JWT_SECRET`), `STAFF_JWT_TTL_SECONDS` (default 900), `STAFF_REFRESH_TOKEN_TTL_SECONDS` (default 604800). Existing local `.env` files need the new variables.
+
 ## Hand-written SQL and `prisma migrate dev`
 
 The migrations hand-write objects Prisma cannot express in `schema.prisma`: the
