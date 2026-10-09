@@ -1,4 +1,5 @@
 import type { BodyZone } from '@hyrox-sponsor/shared/body-zone';
+import { errorCode } from '../auth/error-code.ts';
 
 export interface FloorPriceView {
   zone: BodyZone;
@@ -18,7 +19,6 @@ export class FloorPriceApiError extends Error {
 
 export interface FloorPriceApiOptions {
   baseUrl: string;
-  getAccessToken: () => string | null;
   fetchImpl?: typeof fetch;
 }
 
@@ -27,35 +27,13 @@ export interface FloorPriceApi {
   saveFloorPrice(zone: BodyZone, floorPriceCents: number): Promise<FloorPriceView>;
 }
 
-const GENERIC_CODE = 'request_failed';
-
-async function errorCode(response: Response): Promise<string> {
-  try {
-    const body: unknown = await response.json();
-    const message = (body as { message?: unknown }).message;
-
-    return typeof message === 'string' ? message : GENERIC_CODE;
-  } catch {
-    return GENERIC_CODE;
-  }
-}
-
 async function send(
   options: FloorPriceApiOptions,
   path: string,
   init: RequestInit,
 ): Promise<unknown> {
-  const token = options.getAccessToken();
-
-  if (token == null || token === '') {
-    throw new FloorPriceApiError(401, 'not_authenticated');
-  }
-
   const fetchImpl = options.fetchImpl ?? fetch;
-  const response = await fetchImpl(`${options.baseUrl}${path}`, {
-    ...init,
-    headers: { Authorization: `Bearer ${token}`, ...init.headers },
-  });
+  const response = await fetchImpl(`${options.baseUrl}${path}`, init);
 
   if (!response.ok) {
     throw new FloorPriceApiError(response.status, await errorCode(response));
