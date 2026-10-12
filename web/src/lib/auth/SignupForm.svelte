@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { TOS_VERSION } from '@hyrox-sponsor/shared/tos-version';
   import { ERROR_CLASS, INPUT_CLASS, LABEL_CLASS, PRIMARY_BUTTON_CLASS } from './auth-classes.ts';
   import { authErrorMessage } from './auth-errors.ts';
   import { AuthApiError } from './auth-types.ts';
@@ -18,6 +19,7 @@
   let password = $state('');
   let confirmPassword = $state('');
   let adultAttested = $state(false);
+  let tosAccepted = $state(false);
   let fieldErrors = $state<FieldErrors>({});
   let serverError = $state<string | null>(null);
   let pending = $state(false);
@@ -25,7 +27,14 @@
   async function handleSubmit(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     serverError = null;
-    fieldErrors = validateSignup({ name, email, password, confirmPassword, adultAttested });
+    fieldErrors = validateSignup({
+      name,
+      email,
+      password,
+      confirmPassword,
+      adultAttested,
+      tosAccepted,
+    });
 
     if (Object.keys(fieldErrors).length > 0) {
       return;
@@ -34,7 +43,13 @@
     pending = true;
 
     try {
-      await session.signup({ name: name.trim(), email: email.trim(), password, adultAttested });
+      await session.signup({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        adultAttested,
+        tosVersion: TOS_VERSION,
+      });
       onsuccess?.();
     } catch (error) {
       serverError =
@@ -128,6 +143,30 @@
     </label>
     {#if fieldErrors.adultAttested != null}
       <p id="signup-adult-error" class={ERROR_CLASS}>{fieldErrors.adultAttested}</p>
+    {/if}
+  </div>
+
+  <div class="flex flex-col gap-1">
+    <label class="flex items-start gap-2 text-sm text-slate-900">
+      <input
+        type="checkbox"
+        class="mt-0.5 size-4 shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
+        bind:checked={tosAccepted}
+        aria-invalid={fieldErrors.tosAccepted != null}
+        aria-describedby={fieldErrors.tosAccepted != null ? 'signup-tos-error' : undefined}
+      />
+      <span>
+        I agree to the
+        <a
+          class="underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
+          href="/terms"
+          target="_blank"
+          rel="noopener">Terms of Service</a
+        ></span
+      >
+    </label>
+    {#if fieldErrors.tosAccepted != null}
+      <p id="signup-tos-error" class={ERROR_CLASS}>{fieldErrors.tosAccepted}</p>
     {/if}
   </div>
 

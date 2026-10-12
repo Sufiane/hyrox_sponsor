@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { AthleteId } from '../common/ids';
 import type { NormalizedEmail } from '../common/email';
 import type { PasswordHash } from '../common/password-hash';
+import type { TosVersion } from '../common/tos-version';
 import { Athlete, Prisma } from '@prisma/client';
 import { UNIQUE_VIOLATION } from '../common/prisma-error-codes';
 import { PrismaService } from '../prisma/prisma.service';
@@ -30,6 +31,8 @@ export class AthleteDb {
     email: NormalizedEmail;
     passwordHash: PasswordHash;
     adultAttestedAt: Date;
+    tosAcceptedAt: Date;
+    tosVersion: TosVersion;
   }): Promise<AthleteRow | null> {
     try {
       const athlete = await this.prisma.athlete.create({ data: { ...data, isAdult: true } });

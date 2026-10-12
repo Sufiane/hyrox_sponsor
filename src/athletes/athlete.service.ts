@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import type { AthleteId } from '../common/ids';
 import type { NormalizedEmail } from '../common/email';
 import type { PasswordHash } from '../common/password-hash';
+import { CURRENT_TOS_VERSION, type TosVersion } from '../common/tos-version';
 import { AthleteDb, type AthleteWithCredentials } from './athlete.db';
 
 export type AthleteRecord = NonNullable<Awaited<ReturnType<AthleteDb['findById']>>>;
@@ -36,19 +37,41 @@ export class AthleteService {
     }
   }
 
+  assertTosAccepted(tosVersion: string | undefined): TosVersion {
+    if (tosVersion === undefined) {
+      this.logger.warn('Signup rejected: ToS acceptance missing');
+
+      throw new BadRequestException('tos_acceptance_required');
+    }
+
+    if (tosVersion !== CURRENT_TOS_VERSION) {
+      this.logger.warn(
+        `Signup rejected: ToS version ${tosVersion} is not current ${CURRENT_TOS_VERSION}`,
+      );
+
+      throw new BadRequestException('tos_version_mismatch');
+    }
+
+    return CURRENT_TOS_VERSION;
+  }
+
   async register(input: {
     name: string;
     email: NormalizedEmail;
     passwordHash: PasswordHash;
     adultAttested: boolean | undefined;
+    tosVersion: TosVersion;
   }): Promise<AthleteRecord> {
     this.assertAdultAttested(input.adultAttested);
 
+    const now = new Date();
     const athlete = await this.db.create({
       name: input.name,
       email: input.email,
       passwordHash: input.passwordHash,
-      adultAttestedAt: new Date(),
+      adultAttestedAt: now,
+      tosAcceptedAt: now,
+      tosVersion: input.tosVersion,
     });
 
     if (!athlete) {

@@ -1,3 +1,4 @@
+import { TOS_VERSION } from '@hyrox-sponsor/shared/tos-version';
 import type { AuthApi } from './auth-api.ts';
 import { AuthApiError } from './auth-types.ts';
 import type { SessionAthlete } from './auth-types.ts';
@@ -265,6 +266,7 @@ describe('createSession', () => {
         email: 'a@b.co',
         password: 'longenough1',
         adultAttested: true,
+        tosVersion: TOS_VERSION,
       });
 
       expect(session.status).toBe('authenticated');

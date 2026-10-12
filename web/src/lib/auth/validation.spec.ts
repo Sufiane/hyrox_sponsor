@@ -6,6 +6,7 @@ const VALID_SIGNUP = {
   password: 'longenough1',
   confirmPassword: 'longenough1',
   adultAttested: true,
+  tosAccepted: true,
 };
 
 describe('validateSignup', () => {
@@ -81,6 +82,23 @@ describe('validateSignup', () => {
       expect(validateSignup({ ...VALID_SIGNUP, adultAttested: false })).toHaveProperty(
         'adultAttested',
       );
+    });
+  });
+
+  describe('ToS acceptance', () => {
+    describe('when unchecked', () => {
+      it('reports the agreement message', () => {
+        expect(validateSignup({ ...VALID_SIGNUP, tosAccepted: false })).toHaveProperty(
+          'tosAccepted',
+          'You must agree to the Terms of Service.',
+        );
+      });
+    });
+
+    describe('when checked', () => {
+      it('has no tosAccepted error', () => {
+        expect(validateSignup(VALID_SIGNUP)).not.toHaveProperty('tosAccepted');
+      });
     });
   });
 });

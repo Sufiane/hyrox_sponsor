@@ -7,6 +7,7 @@ import { AthleteDb } from './athlete.db';
 import type { AthleteId } from '../common/ids';
 import type { NormalizedEmail } from '../common/email';
 import type { PasswordHash } from '../common/password-hash';
+import { CURRENT_TOS_VERSION } from '../common/tos-version';
 
 describe('AthleteService', () => {
   let db: DeepMockProxy<AthleteDb>;
@@ -97,11 +98,63 @@ describe('AthleteService', () => {
     });
   });
 
+  describe('assertTosAccepted', () => {
+    let warn: MockInstance;
+
+    beforeEach(() => {
+      warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      warn.mockRestore();
+    });
+
+    describe('when tosVersion is undefined', () => {
+      it('rejects with tos_acceptance_required', () => {
+        expect(() => service.assertTosAccepted(undefined)).toThrow('tos_acceptance_required');
+      });
+
+      it('throws BadRequestException', () => {
+        expect(() => service.assertTosAccepted(undefined)).toThrow(BadRequestException);
+      });
+
+      it('logs a warning', () => {
+        expect(() => service.assertTosAccepted(undefined)).toThrow();
+
+        expect(warn).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('when tosVersion is not the current version', () => {
+      it('rejects with tos_version_mismatch', () => {
+        expect(() => service.assertTosAccepted('old-version')).toThrow('tos_version_mismatch');
+      });
+
+      it('throws BadRequestException', () => {
+        expect(() => service.assertTosAccepted('old-version')).toThrow(BadRequestException);
+      });
+
+      it('logs the received and current versions', () => {
+        expect(() => service.assertTosAccepted('old-version')).toThrow();
+
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('old-version'));
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining(CURRENT_TOS_VERSION));
+      });
+    });
+
+    describe('when tosVersion is the current version', () => {
+      it('returns the current version', () => {
+        expect(service.assertTosAccepted(CURRENT_TOS_VERSION)).toBe(CURRENT_TOS_VERSION);
+      });
+    });
+  });
+
   describe('register', () => {
     const input = {
       name: 'Jamie Lee',
       email: 'jamie@example.com' as NormalizedEmail,
       passwordHash: '$argon2id$x' as PasswordHash,
+      tosVersion: CURRENT_TOS_VERSION,
     };
     let warn: MockInstance;
 
@@ -140,7 +193,7 @@ describe('AthleteService', () => {
         db.create.mockResolvedValue(created as never);
       });
 
-      it('creates the athlete with a server-side attestation timestamp', async () => {
+      it('creates the athlete with server-side attestation and acceptance timestamps', async () => {
         await service.register({ ...input, adultAttested: true });
 
         expect(db.create).toHaveBeenCalledWith({
@@ -148,6 +201,8 @@ describe('AthleteService', () => {
           email: input.email,
           passwordHash: input.passwordHash,
           adultAttestedAt: now,
+          tosAcceptedAt: now,
+          tosVersion: CURRENT_TOS_VERSION,
         });
       });
 

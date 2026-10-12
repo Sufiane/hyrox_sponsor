@@ -41,7 +41,8 @@ function parseSignup(body: Record<string, unknown> | null): SignupInput | null {
     typeof body?.name !== 'string' ||
     typeof body.email !== 'string' ||
     typeof body.password !== 'string' ||
-    typeof body.adultAttested !== 'boolean'
+    typeof body.adultAttested !== 'boolean' ||
+    typeof body.tosVersion !== 'string'
   ) {
     return null;
   }
@@ -51,6 +52,7 @@ function parseSignup(body: Record<string, unknown> | null): SignupInput | null {
     email: body.email,
     password: body.password,
     adultAttested: body.adultAttested,
+    tosVersion: body.tosVersion,
   };
 }
 
