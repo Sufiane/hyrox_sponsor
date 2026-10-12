@@ -198,3 +198,33 @@ describe('validateEnv TRUST_PROXY_HOPS', () => {
     });
   });
 });
+
+describe('validateEnv AUCTION_SCHEDULER_ENABLED', () => {
+  describe('when unset', () => {
+    it('defaults to true', () => {
+      expect(validateEnv(validEnv).AUCTION_SCHEDULER_ENABLED).toBe(true);
+    });
+  });
+
+  describe('when set to the string false', () => {
+    it('parses to false', () => {
+      expect(validateEnv({ ...validEnv, AUCTION_SCHEDULER_ENABLED: 'false' }).AUCTION_SCHEDULER_ENABLED).toBe(
+        false,
+      );
+    });
+  });
+
+  describe('when set to the string true', () => {
+    it('parses to true', () => {
+      expect(validateEnv({ ...validEnv, AUCTION_SCHEDULER_ENABLED: 'true' }).AUCTION_SCHEDULER_ENABLED).toBe(
+        true,
+      );
+    });
+  });
+
+  describe('when set to anything else', () => {
+    it('rejects the env', () => {
+      expect(() => validateEnv({ ...validEnv, AUCTION_SCHEDULER_ENABLED: 'yes' })).toThrow('env_invalid');
+    });
+  });
+});

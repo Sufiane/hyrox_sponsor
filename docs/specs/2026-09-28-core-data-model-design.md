@@ -177,6 +177,7 @@ exists now purely as the FK target other entities need.
 - `status` (`SCHEDULED/OPEN/CLOSED`) — bidding lifecycle only. Frozen at `CLOSED`
   once the auction window ends; never mutated again afterward, even by disputes.
 - `outcome` (`PENDING/AWAITING_PROOF/COMPLETED/REFUNDED/DISPUTED/FORFEITED_FEE`)
+> `NO_SALE` added in HYR-8 (closed with no bids, or never opened); see `docs/specs/2026-10-09-auction-scheduling-design.md` section 3.8.
   — financial/proof resolution, independent of `status`, and can keep changing
   after `status = CLOSED` (e.g. dispute resolution flips this field, never
   `status`).

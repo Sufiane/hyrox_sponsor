@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Transform, Type, plainToInstance } from 'class-transformer';
 import {
+  IsBoolean,
   IsInt,
   IsOptional,
   IsString,
@@ -97,6 +98,20 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsUrl({ require_tld: false })
   STORAGE_ENDPOINT?: string;
+
+  @Transform(({ value }: { value: unknown }) => {
+    if (value === 'true') {
+      return true;
+    }
+
+    if (value === 'false') {
+      return false;
+    }
+
+    return value;
+  })
+  @IsBoolean()
+  AUCTION_SCHEDULER_ENABLED: boolean = true;
 }
 
 export function validateEnv(raw: Record<string, unknown>): EnvironmentVariables {

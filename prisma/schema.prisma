@@ -197,6 +197,7 @@ enum AuctionOutcome {
   REFUNDED
   DISPUTED
   FORFEITED_FEE
+  NO_SALE
 
   @@map("auction_outcome")
 }

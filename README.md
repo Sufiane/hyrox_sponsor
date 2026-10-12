@@ -91,6 +91,13 @@ Athletes upload a bib or confirmation document (JPEG, PNG, WebP or PDF, up to 10
 - HYR-8 gate contract: call `RaceEntryService.assertVerified(raceEntryId)` (throws 404 `race_entry_not_found` / 409 `race_entry_not_verified`) or `isVerifiedById` before creating or opening an auction. There is no DB trigger, so HYR-8's due-auctions query MUST filter `verificationStatus: 'VERIFIED'`.
 - Staff review API and staff auth are HYR-29. `RaceEntryService.listAwaitingReview`, `getDocumentAccess` (300 second signed URL) and `reviewVerification` exist for it.
 
+## Auction scheduling (HYR-8)
+
+An in-process job (`AuctionSchedulerTask`, every 60 s) drives the auction lifecycle: it creates the nine `SCHEDULED` zone auctions for each `VERIFIED` race entry, opens them at race-local midnight of day -12, and closes them at race-local midnight of day -5. Closing marks the leading bid `WON` (others `LOST`, `outcome AWAITING_PROOF`, `proofDeadlineAt` = race start + 48 h) or sets `outcome NO_SALE` when there is no leading bid. All writes are idempotent compare-and-set, so several instances can tick at once.
+
+- Set `AUCTION_SCHEDULER_ENABLED=false` on replicas or local workspaces that should not tick (default `true`). If it is disabled everywhere, auctions silently stall; each tick that changes something logs its counts.
+- Spec: `docs/specs/2026-10-09-auction-scheduling-design.md`.
+
 ## Branded types
 
 Domain scalars (entity ids, `NormalizedEmail`, `Cents`, Stripe ids, `TrustScore`, `IanaTimezone`) are branded types living in `src/common`, which never imports `@prisma/client`. Validating constructors (`cents()`, `trustScore()`, `ianaTimezone()`, `normalizeEmail()`) build them. Only `*.db.ts` files and these constructors cast to a brand; services never do.
