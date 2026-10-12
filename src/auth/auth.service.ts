@@ -26,8 +26,10 @@ export class AuthService {
     email: string;
     password: string;
     adultAttested?: boolean;
+    tosVersion?: string;
   }): Promise<AuthResult> {
     this.athleteService.assertAdultAttested(input.adultAttested);
+    const tosVersion = this.athleteService.assertTosAccepted(input.tosVersion);
 
     const passwordHash = await this.hasher.hash(input.password);
     const athlete = await this.athleteService.register({
@@ -35,6 +37,7 @@ export class AuthService {
       email: normalizeEmail(input.email),
       passwordHash,
       adultAttested: input.adultAttested,
+      tosVersion,
     });
     const tokens = await this.issueTokens(athlete.id);
 

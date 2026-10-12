@@ -1,3 +1,4 @@
+import { TOS_VERSION } from '@hyrox-sponsor/shared/tos-version';
 import { createAuthApi } from './auth-api.ts';
 import { AuthApiError } from './auth-types.ts';
 
@@ -60,7 +61,13 @@ describe('createAuthApi', () => {
       fetchImpl.mockResolvedValue(
         jsonResponse({ accessToken: 'a', expiresIn: 900, athlete: ATHLETE }, 201),
       );
-      const input = { name: 'A', email: 'a@b.co', password: 'longenough1', adultAttested: true };
+      const input = {
+        name: 'A',
+        email: 'a@b.co',
+        password: 'longenough1',
+        adultAttested: true,
+        tosVersion: TOS_VERSION,
+      };
 
       await api.signup(input);
 

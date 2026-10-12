@@ -1,3 +1,4 @@
+import { TOS_VERSION } from '@hyrox-sponsor/shared/tos-version';
 import { createBackendAuth } from './backend-auth.ts';
 
 const BASE_URL = 'http://api.test';
@@ -77,6 +78,7 @@ describe('createBackendAuth', () => {
             email: 'a@b.co',
             password: 'longenough1',
             adultAttested: true,
+            tosVersion: TOS_VERSION,
           },
           null,
         );
@@ -129,6 +131,7 @@ describe('createBackendAuth', () => {
       email: 'a@b.co',
       password: 'longenough1',
       adultAttested: true,
+      tosVersion: TOS_VERSION,
     };
 
     function callWith(method: string, clientIp: string | null): Promise<unknown> {

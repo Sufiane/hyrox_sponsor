@@ -28,6 +28,8 @@ model Athlete {
   passwordHash             String    @map("password_hash")
   isAdult                  Boolean   @default(false) @map("is_adult")
   adultAttestedAt          DateTime? @map("adult_attested_at") @db.Timestamptz(3)
+  tosAcceptedAt            DateTime? @map("tos_accepted_at") @db.Timestamptz(3)
+  tosVersion               String?   @map("tos_version")
   trustScore               Int       @default(50) @map("trust_score")
   strikeCount              Int       @default(0) @map("strike_count")
   isBanned                 Boolean   @default(false) @map("is_banned")

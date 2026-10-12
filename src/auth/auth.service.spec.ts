@@ -8,6 +8,7 @@ import { PasswordHasher } from './password-hasher';
 import { RefreshTokenDb } from './refresh-token.db';
 import { TokenService } from './token.service';
 import type { PasswordHash } from '../common/password-hash';
+import { CURRENT_TOS_VERSION } from '../common/tos-version';
 import type { RefreshTokenHash } from '../common/refresh-token-hash';
 
 const PASSWORD = 'plaintext-password-123';
@@ -50,6 +51,7 @@ describe('AuthService', () => {
     });
     tokenService.hashRefreshToken.mockReturnValue(hash);
     hasher.hash.mockResolvedValue(storedHash);
+    athleteService.assertTosAccepted.mockReturnValue(CURRENT_TOS_VERSION);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -72,7 +74,13 @@ describe('AuthService', () => {
   }
 
   describe('signup', () => {
-    const input = { name: 'Jamie Lee', email: '  Jamie@Example.com ', password: PASSWORD, adultAttested: true };
+    const input = {
+      name: 'Jamie Lee',
+      email: '  Jamie@Example.com ',
+      password: PASSWORD,
+      adultAttested: true,
+      tosVersion: CURRENT_TOS_VERSION as string | undefined,
+    };
 
     describe('when attestation is missing', () => {
       beforeEach(() => {
@@ -100,6 +108,47 @@ describe('AuthService', () => {
       });
     });
 
+    describe('when tos acceptance is rejected', () => {
+      beforeEach(() => {
+        athleteService.assertTosAccepted.mockImplementation(() => {
+          throw new BadRequestException('tos_acceptance_required');
+        });
+      });
+
+      it('propagates tos_acceptance_required', async () => {
+        await expect(service.signup({ ...input, tosVersion: undefined })).rejects.toThrow('tos_acceptance_required');
+      });
+
+      it('does not hash the password', async () => {
+        await service.signup({ ...input, tosVersion: undefined }).catch(() => undefined);
+
+        expect(hasher.hash).not.toHaveBeenCalled();
+      });
+
+      it('does not register the athlete', async () => {
+        await service.signup({ ...input, tosVersion: undefined }).catch(() => undefined);
+
+        expect(athleteService.register).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('when both gates would fail', () => {
+      beforeEach(() => {
+        athleteService.assertAdultAttested.mockImplementation(() => {
+          throw new BadRequestException('adult_attestation_required');
+        });
+        athleteService.assertTosAccepted.mockImplementation(() => {
+          throw new BadRequestException('tos_acceptance_required');
+        });
+      });
+
+      it('rejects with adult_attestation_required first', async () => {
+        await expect(service.signup({ ...input, adultAttested: undefined, tosVersion: undefined })).rejects.toThrow(
+          'adult_attestation_required',
+        );
+      });
+    });
+
     describe('when the email is taken', () => {
       it('propagates email_already_registered', async () => {
         athleteService.register.mockRejectedValue(new BadRequestException('email_already_registered'));
@@ -121,6 +170,7 @@ describe('AuthService', () => {
           email: 'jamie@example.com',
           passwordHash: storedHash,
           adultAttested: true,
+          tosVersion: CURRENT_TOS_VERSION,
         });
       });
 

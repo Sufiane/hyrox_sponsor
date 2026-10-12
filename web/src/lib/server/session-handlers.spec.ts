@@ -1,3 +1,4 @@
+import { TOS_VERSION } from '@hyrox-sponsor/shared/tos-version';
 import type { BackendAuth } from './backend-auth.ts';
 import { createFakeJar } from './fake-jar.ts';
 import { createSessionHandlers } from './session-handlers.ts';
@@ -8,6 +9,13 @@ const AUTH_PAYLOAD = {
   refreshToken: 'secret-refresh',
   expiresIn: 900,
   athlete: ATHLETE,
+};
+const SIGNUP_BODY = {
+  name: 'A',
+  email: 'a@b.co',
+  password: 'longenough1',
+  adultAttested: true,
+  tosVersion: TOS_VERSION,
 };
 const CONFIG = { secure: true, maxAgeSeconds: 2_592_000 };
 
@@ -92,6 +100,23 @@ describe('createSessionHandlers', () => {
   });
 
   describe('signup', () => {
+    describe.each([
+      ['missing', undefined],
+      ['not a string', 7],
+    ])('when tosVersion is %s', (_label, tosVersion) => {
+      it('answers 400 validation_failed without calling the backend', async () => {
+        const response = await handlers.signup(
+          jsonRequest({ ...SIGNUP_BODY, tosVersion }),
+          createFakeJar(),
+          null,
+        );
+
+        expect(response.status).toBe(400);
+        expect(await response.json()).toMatchObject({ message: 'validation_failed' });
+        expect(backend.signup).not.toHaveBeenCalled();
+      });
+    });
+
     describe('when the backend creates the account', () => {
       it('sets the cookie and answers 201 without the refresh token', async () => {
         backend.signup.mockResolvedValue({ ok: true, value: AUTH_PAYLOAD });
@@ -103,6 +128,7 @@ describe('createSessionHandlers', () => {
             email: 'a@b.co',
             password: 'longenough1',
             adultAttested: true,
+            tosVersion: TOS_VERSION,
             confirmPassword: 'longenough1',
           }),
           jar,
@@ -113,7 +139,13 @@ describe('createSessionHandlers', () => {
         expect(jar.sets[0].value).toBe('secret-refresh');
         expect(JSON.stringify(await response.json())).not.toContain('secret-refresh');
         expect(backend.signup).toHaveBeenCalledWith(
-          { name: 'A', email: 'a@b.co', password: 'longenough1', adultAttested: true },
+          {
+            name: 'A',
+            email: 'a@b.co',
+            password: 'longenough1',
+            adultAttested: true,
+            tosVersion: TOS_VERSION,
+          },
           null,
         );
       });
@@ -128,7 +160,7 @@ describe('createSessionHandlers', () => {
         });
 
         const response = await handlers.signup(
-          jsonRequest({ name: 'A', email: 'a@b.co', password: 'longenough1', adultAttested: true }),
+          jsonRequest(SIGNUP_BODY),
           createFakeJar(),
           null,
         );
@@ -243,7 +275,7 @@ describe('createSessionHandlers', () => {
         backend.signup.mockResolvedValue({ ok: false, status: 400, code: 'x' });
 
         await handlers.signup(
-          jsonRequest({ name: 'A', email: 'a@b.co', password: 'longenough1', adultAttested: true }),
+          jsonRequest(SIGNUP_BODY),
           createFakeJar(),
           CLIENT_IP,
         );

@@ -6,6 +6,11 @@ describe('authErrorMessage', () => {
     ['athlete_banned', 'This account is suspended.'],
     ['email_already_registered', 'That email is already registered.'],
     ['adult_attestation_required', 'You must confirm you are 18 or older.'],
+    ['tos_acceptance_required', 'You must agree to the Terms of Service.'],
+    [
+      'tos_version_mismatch',
+      'The Terms of Service were updated. Reload the page and agree again.',
+    ],
     ['validation_failed', 'Check the highlighted fields and try again.'],
     ['something_else', 'Something went wrong. Try again.'],
   ])('maps %s', (code, message) => {

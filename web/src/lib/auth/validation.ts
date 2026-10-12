@@ -16,6 +16,7 @@ export interface SignupFormInput {
   password: string;
   confirmPassword: string;
   adultAttested: boolean;
+  tosAccepted: boolean;
 }
 
 function emailError(email: string): string | null {
@@ -71,5 +72,6 @@ export function validateSignup(input: SignupFormInput): FieldErrors {
       input.confirmPassword === input.password ? null : 'Passwords do not match.',
     ],
     ['adultAttested', input.adultAttested ? null : 'You must confirm you are 18 or older.'],
+    ['tosAccepted', input.tosAccepted ? null : 'You must agree to the Terms of Service.'],
   ]);
 }

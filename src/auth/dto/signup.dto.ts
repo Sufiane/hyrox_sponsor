@@ -18,4 +18,9 @@ export class SignupDto {
   @IsOptional()
   @IsBoolean()
   adultAttested?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  tosVersion?: string;
 }

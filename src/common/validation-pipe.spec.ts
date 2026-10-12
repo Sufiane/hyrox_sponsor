@@ -4,7 +4,13 @@ import { SignupDto } from '../auth/dto/signup.dto';
 import { createValidationPipe } from './validation-pipe';
 
 const metadata: ArgumentMetadata = { type: 'body', metatype: SignupDto };
-const valid = { name: ' Jamie Lee ', email: 'jamie@example.com', password: 'long-enough-password', adultAttested: true };
+const valid = {
+  name: ' Jamie Lee ',
+  email: 'jamie@example.com',
+  password: 'long-enough-password',
+  adultAttested: true,
+  tosVersion: '2026-10-10-draft',
+};
 
 describe('createValidationPipe', () => {
   let warn: MockInstance;
@@ -47,6 +53,30 @@ describe('createValidationPipe', () => {
         .catch(() => undefined);
 
       expect(JSON.stringify(warn.mock.calls)).not.toContain('"short"');
+    });
+  });
+
+  describe('when tosVersion has the wrong type', () => {
+    it('rejects with validation_failed', async () => {
+      await expect(createValidationPipe().transform({ ...valid, tosVersion: 5 }, metadata)).rejects.toThrow(
+        'validation_failed',
+      );
+    });
+  });
+
+  describe('when tosVersion is out of bounds', () => {
+    it.each(['', 'a'.repeat(65)])('rejects length %#', async (tosVersion) => {
+      await expect(createValidationPipe().transform({ ...valid, tosVersion }, metadata)).rejects.toThrow(
+        'validation_failed',
+      );
+    });
+  });
+
+  describe('when tosVersion is omitted', () => {
+    it('passes the pipe', async () => {
+      const withoutTosVersion = { ...valid, tosVersion: undefined };
+
+      await expect(createValidationPipe().transform(withoutTosVersion, metadata)).resolves.toBeInstanceOf(SignupDto);
     });
   });
 

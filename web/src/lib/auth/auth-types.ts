@@ -19,6 +19,7 @@ export interface SignupInput {
   email: string;
   password: string;
   adultAttested: boolean;
+  tosVersion: string;
 }
 
 export class AuthApiError extends Error {
