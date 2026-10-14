@@ -1,0 +1,10 @@
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+[scripts]
+setup = '''
+set -e
+npm ci
+npx prisma generate
+(cd web && npx svelte-kit sync)
+"$HOME/.local/bin/codebase-memory-mcp" cli index_repository "{\"repo_path\": \"$CONDUCTOR_WORKSPACE_PATH\"}"
+'''
