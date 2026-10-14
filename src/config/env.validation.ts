@@ -51,6 +51,17 @@ export class EnvironmentVariables {
   @IsString({ each: true })
   CORS_ORIGINS: string[] = [];
 
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string'
+      ? value
+          .split(',')
+          .map((host) => host.trim().toLowerCase())
+          .filter((host) => host !== '')
+      : value,
+  )
+  @IsString({ each: true })
+  RESULT_PROOF_URL_HOSTS: string[] = [];
+
   @IsString()
   @MinLength(MIN_SECRET_LENGTH)
   JWT_SECRET!: string;

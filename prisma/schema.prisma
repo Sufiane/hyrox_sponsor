@@ -174,14 +174,43 @@ model RaceEntry {
   createdAt                   DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                   DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  athlete  Athlete   @relation(fields: [athleteId], references: [id])
-  race     Race      @relation(fields: [raceId], references: [id])
-  auctions Auction[]
+  athlete    Athlete     @relation(fields: [athleteId], references: [id])
+  race       Race        @relation(fields: [raceId], references: [id])
+  auctions   Auction[]
+  raceResult RaceResult?
 
   @@unique([athleteId, raceLocalDate])
   @@index([raceId])
   @@index([verificationStatus, verificationSubmittedAt])
   @@map("race_entries")
+}
+
+enum RaceResultStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+
+  @@map("race_result_status")
+}
+
+model RaceResult {
+  id                String           @id @default(cuid())
+  raceEntryId       String           @unique @map("race_entry_id")
+  finishTimeSeconds Int              @map("finish_time_seconds")
+  proofPhotoKey     String           @map("proof_photo_key")
+  proofUrl          String?          @map("proof_url")
+  status            RaceResultStatus @default(PENDING)
+  rejectionReason   String?          @map("rejection_reason")
+  reviewedBy        String?          @map("reviewed_by")
+  reviewedAt        DateTime?        @map("reviewed_at") @db.Timestamptz(3)
+  submittedAt       DateTime         @map("submitted_at") @db.Timestamptz(3)
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  raceEntry RaceEntry @relation(fields: [raceEntryId], references: [id], onDelete: Cascade)
+
+  @@index([status, submittedAt])
+  @@map("race_results")
 }
 
 enum AuctionStatus {

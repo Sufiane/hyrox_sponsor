@@ -1,5 +1,5 @@
 import { InvalidValueError } from './domain-error';
-import { athleteId, raceEntryId, staffId } from './ids';
+import { athleteId, raceEntryId, raceId, raceResultId, staffId } from './ids';
 
 describe('athleteId', () => {
   describe('when the value is a non-blank string', () => {
@@ -60,6 +60,30 @@ describe('staffId', () => {
   describe('when the value is longer than 64 characters', () => {
     it('throws', () => {
       expect(() => staffId('a'.repeat(65))).toThrow('staff_id_invalid');
+    });
+  });
+});
+
+describe.each([
+  ['raceId', raceId, 'race_id_invalid'],
+  ['raceResultId', raceResultId, 'race_result_id_invalid'],
+])('%s', (_name, build, code) => {
+  describe('when the value is a non-blank string', () => {
+    it('returns the trimmed value', () => {
+      expect(build('  id_1 ')).toBe('id_1');
+    });
+  });
+
+  describe('when the value is blank', () => {
+    it('throws an InvalidValueError', () => {
+      expect(() => build('   ')).toThrow(InvalidValueError);
+      expect(() => build('   ')).toThrow(code);
+    });
+  });
+
+  describe('when the value is longer than 64 characters', () => {
+    it('throws', () => {
+      expect(() => build('a'.repeat(65))).toThrow(code);
     });
   });
 });

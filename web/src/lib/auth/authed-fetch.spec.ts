@@ -149,4 +149,24 @@ describe('createAuthedFetch', () => {
       expect(refreshImpl).not.toHaveBeenCalled();
     });
   });
+
+  describe('when the body is FormData and the server answers 401', () => {
+    it('resends the same FormData on retry', async () => {
+      const body = new FormData();
+
+      body.set('finishTimeSeconds', '3725');
+      fetchImpl.mockResolvedValueOnce(response(401)).mockResolvedValueOnce(response(200));
+
+      await authedFetch('http://api.test/x', { method: 'PUT', body });
+
+      const first = (fetchImpl.mock.calls[0][1] as RequestInit).body as FormData;
+      const second = (fetchImpl.mock.calls[1][1] as RequestInit).body as FormData;
+
+      expect(second).toBe(first);
+      expect(second.get('finishTimeSeconds')).toBe('3725');
+      expect(
+        new Headers((fetchImpl.mock.calls[1][1] as RequestInit).headers).has('Content-Type'),
+      ).toBe(false);
+    });
+  });
 });

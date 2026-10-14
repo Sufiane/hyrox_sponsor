@@ -91,6 +91,27 @@ Athletes upload a bib or confirmation document (JPEG, PNG, WebP or PDF, up to 10
 - HYR-8 gate contract: call `RaceEntryService.assertVerified(raceEntryId)` (throws 404 `race_entry_not_found` / 409 `race_entry_not_verified`) or `isVerifiedById` before creating or opening an auction. There is no DB trigger, so HYR-8's due-auctions query MUST filter `verificationStatus: 'VERIFIED'`.
 - Staff review API and staff auth are HYR-29. `RaceEntryService.listAwaitingReview`, `getDocumentAccess` (300 second signed URL) and `reviewVerification` exist for it.
 
+## Race results (HYR-21)
+
+Athletes self-report a finish time with a clock photo and an optional proof link; staff review each result; the public sees PENDING and VERIFIED results of verified-bib entries, ranking VERIFIED times only. Spec: `docs/specs/2026-10-10-public-race-results-design.md`.
+
+| Route | Auth | Notes |
+|---|---|---|
+| `PUT /race-entries/:raceEntryId/result` | athlete | multipart `photo`, `finishTimeSeconds` (1800-21600), `proofUrl?`; 10/min; any edit resets to PENDING; omitting `photo` on edit keeps the old one |
+| `GET /race-entries/:raceEntryId/result` | athlete | own result, `publicVisible`, rejection reason |
+| `GET /race-entries` | athlete | own entries (cap 50) with bib and result status |
+| `GET /staff/race-results` | staff | PENDING queue, oldest first, cap 50 |
+| `GET /staff/race-results/:raceResultId` | staff | detail with 5-minute signed photo URL, `no-store` |
+| `POST /staff/race-results/:raceResultId/approve` | staff | body `{ submittedAt }`, 204 |
+| `POST /staff/race-results/:raceResultId/reject` | staff | body `{ submittedAt, reason }`, 204 |
+| `GET /public/races` | none | `limit`, `cursor`; races with a public result |
+| `GET /public/races/:raceId` | none | divisions with counts |
+| `GET /public/races/:raceId/results` | none | `division` required, `limit` (max 100), `offset` (max 10000) |
+
+Public routes send `Cache-Control: public, max-age=60` and never expose photo, proof link, ids, email or bib. Error codes: `race_entry_not_found`, `athlete_banned`, `race_not_finished`, `proof_photo_missing`, `proof_photo_too_large`, `proof_photo_type_unsupported`, `finish_time_out_of_range`, `seconds_invalid`, `proof_url_invalid`, `proof_url_host_not_allowed`, `result_state_changed`, `race_result_not_found`, `result_not_pending`, `result_changed`, `rejection_reason_required`, `race_not_found`, `cursor_invalid`.
+
+Env: `RESULT_PROOF_URL_HOSTS` (comma-separated exact hosts allowed in proof links, default empty meaning every link is refused; fill before launch).
+
 ## Auction scheduling (HYR-8)
 
 An in-process job (`AuctionSchedulerTask`, every 60 s) drives the auction lifecycle: it creates the nine `SCHEDULED` zone auctions for each `VERIFIED` race entry, opens them at race-local midnight of day -12, and closes them at race-local midnight of day -5. Closing marks the leading bid `WON` (others `LOST`, `outcome AWAITING_PROOF`, `proofDeadlineAt` = race start + 48 h) or sets `outcome NO_SALE` when there is no leading bid. All writes are idempotent compare-and-set, so several instances can tick at once.

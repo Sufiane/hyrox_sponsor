@@ -7,9 +7,8 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { DocumentKey } from '../common/document-key';
 import type { EnvironmentVariables } from '../config/env.validation';
-import { DocumentStorage } from './document-storage';
+import { DocumentStorage, type StorageKey } from './document-storage';
 
 @Injectable()
 export class S3DocumentStorage extends DocumentStorage {
@@ -33,7 +32,7 @@ export class S3DocumentStorage extends DocumentStorage {
     });
   }
 
-  async put(key: DocumentKey, body: Buffer, contentType: string): Promise<void> {
+  async put(key: StorageKey, body: Buffer, contentType: string): Promise<void> {
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
@@ -45,11 +44,11 @@ export class S3DocumentStorage extends DocumentStorage {
     );
   }
 
-  async delete(key: DocumentKey): Promise<void> {
+  async delete(key: StorageKey): Promise<void> {
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
 
-  signedGetUrl(key: DocumentKey, expiresInSeconds: number): Promise<string> {
+  signedGetUrl(key: StorageKey, expiresInSeconds: number): Promise<string> {
     return getSignedUrl(this.client, new GetObjectCommand({ Bucket: this.bucket, Key: key }), {
       expiresIn: expiresInSeconds,
     });
