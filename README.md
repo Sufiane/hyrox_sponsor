@@ -49,9 +49,24 @@ npm run staff -- deactivate --email jane@example.com
 | `POST /staff/auth/logout` | refresh token in body | 204 |
 | `GET /staff/auth/me` | `Authorization: Bearer <staff access jwt>` | 200 `{ id, name, email }` |
 
-Access token 15 min, refresh token 7 days. Staff-only controllers live under `/admin/*`, use `@UseGuards(StaffGuard)` and receive the reviewer via `@CurrentStaffId()`. Athlete and staff tokens are not interchangeable.
+Access token 15 min, refresh token 7 days. Staff-only controllers live under `/staff/*`, use `@UseGuards(StaffGuard)` and receive the reviewer via `@CurrentStaffId()`. Athlete and staff tokens are not interchangeable.
 
 Env (required, validated at boot): `STAFF_JWT_SECRET` (min 32 chars, must differ from `JWT_SECRET`), `STAFF_JWT_TTL_SECONDS` (default 900), `STAFF_REFRESH_TOKEN_TTL_SECONDS` (default 604800). Existing local `.env` files need the new variables.
+
+### Bib review API (HYR-33)
+
+All routes need `Authorization: Bearer <staff access jwt>` (missing, invalid or athlete token gives 401 `invalid_token`). Spec: `docs/specs/2026-10-10-bib-review-api-design.md`.
+
+| Route | Body | Success |
+|---|---|---|
+| `GET /staff/race-entries/awaiting-review` | none | 200 `AwaitingReviewItem[]` (PENDING, oldest first, max 50) |
+| `GET /staff/race-entries/:raceEntryId/verification-document-url` | none | 200 `{ url, expiresAt, documentKey }` (300 second signed URL, `Cache-Control: no-store`) |
+| `POST /staff/race-entries/:raceEntryId/verification/approve` | `{ reviewedDocumentKey }` | 204 |
+| `POST /staff/race-entries/:raceEntryId/verification/reject` | `{ reviewedDocumentKey, reason }` (reason 1 to 500 chars, trimmed) | 204 |
+
+`reviewedDocumentKey` is the `documentKey` the reviewer saw; a changed document gives 409. The reviewing staff id comes from the token and is stored in `verified_by`.
+
+Errors: 400 `validation_failed`, `document_key_invalid`, `rejection_reason_required`; 404 `race_entry_not_found`, `verification_document_not_found`; 409 `verification_not_pending`, `verification_document_changed`.
 
 ## Hand-written SQL and `prisma migrate dev`
 
@@ -89,7 +104,7 @@ Athletes upload a bib or confirmation document (JPEG, PNG, WebP or PDF, up to 10
   - `GET /race-entries/:raceEntryId/verification` returns the status view (never the document key).
 - Migrations: the HYR-6 migration hand-writes one rename (`verification_document_url` to `verification_document_key`); run the shadow-database check above and expect an empty migration.
 - HYR-8 gate contract: call `RaceEntryService.assertVerified(raceEntryId)` (throws 404 `race_entry_not_found` / 409 `race_entry_not_verified`) or `isVerifiedById` before creating or opening an auction. There is no DB trigger, so HYR-8's due-auctions query MUST filter `verificationStatus: 'VERIFIED'`.
-- Staff review API and staff auth are HYR-29. `RaceEntryService.listAwaitingReview`, `getDocumentAccess` (300 second signed URL) and `reviewVerification` exist for it.
+- Staff review API is HYR-33 (see below); staff auth is HYR-29.
 
 ## Race results (HYR-21)
 
