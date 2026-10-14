@@ -35,7 +35,7 @@ export function createAuthedFetch(options: AuthedFetchOptions): typeof fetch {
     return (options.fetchImpl ?? fetch)(input, { ...init, headers });
   }
 
-  // The retry reuses init, so init.body must be re-sendable (a string), not a stream.
+  // The retry reuses init, so init.body must be re-sendable (a string or FormData), not a stream.
   return async (input, init) => {
     const usedToken = await ensureToken();
     const response = await send(input, init, usedToken);

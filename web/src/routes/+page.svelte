@@ -10,6 +10,8 @@
       {session.athlete == null ? 'Welcome' : `Welcome, ${session.athlete.name}`}
     </h1>
     <LogoutButton {session} onloggedout={() => void goto('/')} />
+    <a class="underline" href="/results">Race results</a>
+    <a class="underline" href="/account/entries">My race entries</a>
     <a class="underline" href="/dev/body-map">Body map dev harness</a>
   {:else if session.status === 'anonymous'}
     <h1 class="text-lg font-semibold">Hyrox Sponsor</h1>
@@ -17,6 +19,7 @@
       <a class="underline" href="/login">Sign in</a>
       <a class="underline" href="/signup">Create account</a>
     </p>
+    <a class="underline" href="/results">Race results</a>
   {:else}
     <p role="status" class="text-sm text-slate-700">Checking session...</p>
   {/if}

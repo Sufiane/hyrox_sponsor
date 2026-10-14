@@ -60,6 +60,24 @@ describe('validateEnv', () => {
     });
   });
 
+  describe('when RESULT_PROOF_URL_HOSTS is unset or empty', () => {
+    it('returns an empty list when unset', () => {
+      expect(validateEnv(validEnv).RESULT_PROOF_URL_HOSTS).toEqual([]);
+    });
+
+    it.each(['', ' , '])('returns an empty list for %j', (hosts) => {
+      expect(validateEnv({ ...validEnv, RESULT_PROOF_URL_HOSTS: hosts }).RESULT_PROOF_URL_HOSTS).toEqual([]);
+    });
+  });
+
+  describe('when RESULT_PROOF_URL_HOSTS lists several hosts', () => {
+    it('returns them trimmed and lowercased', () => {
+      const env = validateEnv({ ...validEnv, RESULT_PROOF_URL_HOSTS: ' Results.Example.com, other.test ,' });
+
+      expect(env.RESULT_PROOF_URL_HOSTS).toEqual(['results.example.com', 'other.test']);
+    });
+  });
+
   describe('when JWT_SECRET is shorter than 32 chars', () => {
     it('throws env_invalid', () => {
       expect(() => validateEnv({ ...validEnv, JWT_SECRET: 'short' })).toThrow('env_invalid');
