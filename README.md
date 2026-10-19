@@ -23,7 +23,21 @@ A pre-push hook runs `verify:fast` (no build). It is tracked in `.githooks/` and
 
 Bypass: `git push --no-verify`.
 
-CI (HYR-37) should call `npm run verify`.
+## CI (HYR-37)
+
+`.github/workflows/ci.yml` runs one `verify` job on every pull request and on pushes to `main`. No database is needed (tests do not hit Postgres). Steps, in order:
+
+```bash
+npm ci
+npx prisma generate
+npm run verify
+npm run check -w shared
+npm run check -w web
+npm test -w shared
+npm test -w web
+```
+
+Run the same commands locally to reproduce a CI failure. Mark `verify` as a required status check in branch protection for `main`.
 
 ## Auth
 
