@@ -9,7 +9,21 @@ for the data model design.
 2. `docker compose up -d postgres minio`
 3. `npm install`
 4. `npx prisma migrate deploy`
-5. `npm run build && npm run lint && npm run lint:arch && npm test`
+5. `npm run verify`
+
+## Verification and git hooks
+
+| Command | Runs |
+|---|---|
+| `npm run verify` | lint, lint:arch, typecheck, test, build (fail-fast) |
+| `npm run verify:fast` | same without build |
+| `npm run typecheck` | `tsc` on `tsconfig.build.json` (plain `tsconfig.json` has unrelated errors under `web/` and `shared/`). Excludes `*.spec.ts` and `web/`, so type errors there are not caught. |
+
+A pre-push hook runs `verify:fast` (no build). It is tracked in `.githooks/` and installed by the root `prepare` script (`git config core.hooksPath .githooks`) on `npm install` / `npm ci`. The setting is shared across worktrees and overwrites a custom `core.hooksPath`. Reinstall with `npm run prepare`.
+
+Bypass: `git push --no-verify`.
+
+CI (HYR-37) should call `npm run verify`.
 
 ## Auth
 

@@ -16,7 +16,11 @@
     "lint": "eslint \"src/**/*.ts\" \"shared/src/**/*.ts\" \"web/src/**/*.ts\"",
     "test": "vitest run",
     "staff": "node dist/staff-auth/cli/staff-admin.js",
-    "lint:arch": "depcruise src --config .dependency-cruiser.cjs"
+    "lint:arch": "depcruise src --config .dependency-cruiser.cjs",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "verify:fast": "npm run lint && npm run lint:arch && npm run typecheck && npm test",
+    "verify": "npm run verify:fast && npm run build",
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1146.0",
