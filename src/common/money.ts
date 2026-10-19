@@ -19,10 +19,20 @@ function roundToWholeCents(value: number): number {
   return Math.floor(value);
 }
 
-export function percentOfCents(amount: Cents, percent: number): Cents {
+function assertValidPercent(percent: number): void {
   if (!Number.isFinite(percent) || percent < 0) {
     throw new InvalidValueError('percent_invalid');
   }
+}
+
+export function percentOfCents(amount: Cents, percent: number): Cents {
+  assertValidPercent(percent);
 
   return cents(roundToWholeCents((amount * percent) / 100));
+}
+
+export function ceilPercentOfCents(amount: Cents, percent: number): Cents {
+  assertValidPercent(percent);
+
+  return cents(Math.ceil((amount * percent) / 100));
 }

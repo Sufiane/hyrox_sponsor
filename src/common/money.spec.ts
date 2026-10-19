@@ -1,5 +1,5 @@
 import { InvalidValueError } from './domain-error';
-import { addCents, cents, percentOfCents } from './money';
+import { addCents, ceilPercentOfCents, cents, percentOfCents } from './money';
 
 describe('cents', () => {
   describe('when the value is a non-negative integer', () => {
@@ -93,6 +93,38 @@ describe('percentOfCents', () => {
     it('throws', () => {
       expect(() => percentOfCents(cents(100), Number.POSITIVE_INFINITY)).toThrow(InvalidValueError);
       expect(() => percentOfCents(cents(100), Number.POSITIVE_INFINITY)).toThrow('percent_invalid');
+    });
+  });
+});
+
+describe('ceilPercentOfCents', () => {
+  describe('when the percentage is exact', () => {
+    it('returns it unchanged', () => {
+      expect(ceilPercentOfCents(cents(10_100), 5)).toBe(505);
+    });
+  });
+
+  describe('when the percentage has a fractional cent', () => {
+    it('rounds up', () => {
+      expect(ceilPercentOfCents(cents(10_010), 5)).toBe(501);
+    });
+  });
+
+  describe('when the amount is zero', () => {
+    it('returns zero', () => {
+      expect(ceilPercentOfCents(cents(0), 5)).toBe(0);
+    });
+  });
+
+  describe('when the percent is negative', () => {
+    it('throws percent_invalid', () => {
+      expect(() => ceilPercentOfCents(cents(100), -1)).toThrow(new InvalidValueError('percent_invalid'));
+    });
+  });
+
+  describe('when the percent is not finite', () => {
+    it('throws percent_invalid', () => {
+      expect(() => ceilPercentOfCents(cents(100), Number.NaN)).toThrow(new InvalidValueError('percent_invalid'));
     });
   });
 });

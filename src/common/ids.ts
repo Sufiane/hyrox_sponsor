@@ -42,3 +42,11 @@ export function raceEntryId(value: string): RaceEntryId {
 export function staffId(value: string): StaffId {
   return validatedId(value, 'staff_id_invalid') as StaffId;
 }
+
+export function auctionId(value: string): AuctionId {
+  return validatedId(value, 'auction_id_invalid') as AuctionId;
+}
+
+export function bidderId(value: string): BidderId {
+  return validatedId(value, 'bidder_id_invalid') as BidderId;
+}
