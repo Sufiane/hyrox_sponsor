@@ -1,5 +1,5 @@
 import { InvalidValueError } from './domain-error';
-import { athleteId, raceEntryId, raceId, raceResultId, staffId } from './ids';
+import { athleteId, auctionId, bidderId, raceEntryId, raceId, raceResultId, staffId } from './ids';
 
 describe('athleteId', () => {
   describe('when the value is a non-blank string', () => {
@@ -84,6 +84,40 @@ describe.each([
   describe('when the value is longer than 64 characters', () => {
     it('throws', () => {
       expect(() => build('a'.repeat(65))).toThrow(code);
+    });
+  });
+});
+
+describe('auctionId', () => {
+  describe('when the value is a non-blank string', () => {
+    it('returns the trimmed value', () => {
+      expect(auctionId(' auction_1 ')).toBe('auction_1');
+    });
+  });
+
+  describe('when the value is blank', () => {
+    it('throws auction_id_invalid', () => {
+      expect(() => auctionId('  ')).toThrow(new InvalidValueError('auction_id_invalid'));
+    });
+  });
+
+  describe('when the value is longer than 64 characters', () => {
+    it('throws auction_id_invalid', () => {
+      expect(() => auctionId('x'.repeat(65))).toThrow(new InvalidValueError('auction_id_invalid'));
+    });
+  });
+});
+
+describe('bidderId', () => {
+  describe('when the value is a non-blank string', () => {
+    it('returns the trimmed value', () => {
+      expect(bidderId(' bidder_1 ')).toBe('bidder_1');
+    });
+  });
+
+  describe('when the value is blank', () => {
+    it('throws bidder_id_invalid', () => {
+      expect(() => bidderId('')).toThrow(new InvalidValueError('bidder_id_invalid'));
     });
   });
 });
