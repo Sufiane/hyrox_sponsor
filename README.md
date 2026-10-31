@@ -17,6 +17,7 @@ for the data model design.
 |---|---|
 | `npm run verify` | lint, lint:arch, typecheck, test, build (fail-fast) |
 | `npm run verify:fast` | same without build |
+| `npm run test:integration` | Postgres concurrency tests (`*.int.spec.ts`), not part of `verify`. Needs `docker compose up -d postgres` (port 5435) or `TEST_ADMIN_DATABASE_URL` pointing at a superuser connection. Skips when Postgres is unreachable, but fails if `CI` is `true`/`1`. |
 | `npm run typecheck` | `tsc` on `tsconfig.build.json` (plain `tsconfig.json` has unrelated errors under `web/` and `shared/`). Excludes `*.spec.ts` and `web/`, so type errors there are not caught. |
 
 A pre-push hook runs `verify:fast` (no build). It is tracked in `.githooks/` and installed by the root `prepare` script (`git config core.hooksPath .githooks`) on `npm install` / `npm ci`. The setting is shared across worktrees and overwrites a custom `core.hooksPath`. Reinstall with `npm run prepare`.
@@ -25,7 +26,7 @@ Bypass: `git push --no-verify`.
 
 ## CI (HYR-37)
 
-`.github/workflows/ci.yml` runs one `verify` job on every pull request and on pushes to `main`. No database is needed (tests do not hit Postgres). Steps, in order:
+`.github/workflows/ci.yml` runs a `verify` job and an `integration` job on every pull request and on pushes to `main`. `verify` needs no database. `integration` runs `npm run test:integration` against a `postgres:16.15` service container and fails if Postgres is unreachable. `verify` steps, in order:
 
 ```bash
 npm ci

@@ -9,6 +9,7 @@ import {
   createThrowawayDatabase,
   DEFAULT_ADMIN_DATABASE_URL,
   isPostgresReachable,
+  requireReachableInCi,
   type ThrowawayDatabase,
 } from '../../../testing/throwaway-database';
 import { CloseAuctionsUsecaseDb } from '../../../auctions/usecases/close-auctions/close-auctions.usecase.db';
@@ -17,7 +18,7 @@ import { PlaceBidUsecase, type PlaceBidInput, type PlaceBidResult } from './plac
 import { PlaceBidUsecaseDb } from './place-bid.usecase.db';
 
 const adminUrl = process.env.TEST_ADMIN_DATABASE_URL ?? DEFAULT_ADMIN_DATABASE_URL;
-const reachable = await isPostgresReachable(adminUrl);
+const reachable = requireReachableInCi(await isPostgresReachable(adminUrl), process.env);
 
 function sleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));

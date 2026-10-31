@@ -35,3 +35,34 @@ jobs:
         run: npm test -w shared
       - name: Test web
         run: npm test -w web
+
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      TEST_ADMIN_DATABASE_URL: postgresql://hyrox:hyrox@localhost:5432/postgres
+    services:
+      postgres:
+        image: postgres:16.15
+        env:
+          POSTGRES_USER: hyrox
+          POSTGRES_PASSWORD: hyrox
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hyrox"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Generate prisma client
+        run: npx prisma generate
+      - name: Run integration tests
+        run: npm run test:integration
