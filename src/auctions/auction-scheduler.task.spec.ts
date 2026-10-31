@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import { type MockInstance } from 'vitest';
+import { type Mock, type MockInstance } from 'vitest';
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { AuctionSchedulerTask } from './auction-scheduler.task';
 import { AuctionService, type LifecycleTickResult } from './auction.service';
@@ -10,7 +10,7 @@ const emptyResult: LifecycleTickResult = { materialized: 0, opened: 0, closedWit
 
 describe('AuctionSchedulerTask', () => {
   let service: DeepMockProxy<AuctionService>;
-  let config: DeepMockProxy<ConfigService>;
+  let config: { get: Mock };
   let task: AuctionSchedulerTask;
   let log: MockInstance;
   let error: MockInstance;
@@ -19,7 +19,7 @@ describe('AuctionSchedulerTask', () => {
     log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
     error = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     service = mockDeep<AuctionService>();
-    config = mockDeep<ConfigService>();
+    config = { get: vi.fn() };
     config.get.mockReturnValue(true);
     service.runLifecycleTick.mockResolvedValue(emptyResult);
     const moduleRef = await Test.createTestingModule({

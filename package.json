@@ -18,8 +18,10 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "staff": "node dist/staff-auth/cli/staff-admin.js",
     "lint:arch": "depcruise src --config .dependency-cruiser.cjs",
-    "typecheck": "tsc -p tsconfig.build.json --noEmit",
-    "verify:fast": "npm run lint && npm run lint:arch && npm run typecheck && npm test",
+    "typecheck": "tsc -p tsconfig.typecheck.json",
+    "typecheck:workspaces": "npm run check --workspaces --if-present",
+    "test:workspaces": "npm test --workspaces --if-present",
+    "verify:fast": "npm run lint && npm run lint:arch && npm run typecheck && npm run typecheck:workspaces && npm test && npm run test:workspaces",
     "verify": "npm run verify:fast && npm run build",
     "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
   },
