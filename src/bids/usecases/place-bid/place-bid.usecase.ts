@@ -15,7 +15,7 @@ export type PlaceBidInput = { auctionId: AuctionId; email: NormalizedEmail; amou
 
 export type PreviousLeader = { bidId: BidId; bidderId: BidderId; amountCents: Cents };
 
-export type PlaceBidResult = { bid: PlacedBid; previousLeader: PreviousLeader | null };
+export type PlaceBidResult = { bid: PlacedBid; closeAt: Date; previousLeader: PreviousLeader | null };
 
 @Injectable()
 export class PlaceBidUsecase {
@@ -84,6 +84,7 @@ export class PlaceBidUsecase {
 
     return {
       bid,
+      closeAt: auction.closeAt,
       previousLeader: leading ? { bidId: leading.id, bidderId: leading.bidderId, amountCents: leading.amountCents } : null,
     };
   }

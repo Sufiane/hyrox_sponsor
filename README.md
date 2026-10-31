@@ -162,6 +162,27 @@ An in-process job (`AuctionSchedulerTask`, every 60 s) drives the auction lifecy
 - Set `AUCTION_SCHEDULER_ENABLED=false` on replicas or local workspaces that should not tick (default `true`). If it is disabled everywhere, auctions silently stall; each tick that changes something logs its counts.
 - Spec: `docs/specs/2026-10-09-auction-scheduling-design.md`.
 
+## Bidding (HYR-40)
+
+`POST /auctions/:auctionId/bids` places a bid. Public and unauthenticated (guest checkout): the caller sends an unverified email.
+
+- Body: `{ "email": string, "amountCents": integer >= 1 }`. Amounts are integer cents. Unknown fields (for example `bidderId`) are rejected with `400 validation_failed`.
+- `201` response: `bidId`, `auctionId`, `amountCents`, `status` (always `LEADING`), `placedAt`, `closeAt`, `minimumNextBidCents`. It never carries bidder identity.
+- Errors, as `{ statusCode, message: <code>, error }`:
+
+| Status | Code |
+|---|---|
+| 400 | `validation_failed`, `auction_id_invalid`, `bid_below_minimum`, `bid_above_maximum` |
+| 403 | `self_bid_not_allowed` (the bidder email is the athlete email; the ticket text called it `cannot_bid_on_own_auction`) |
+| 404 | `auction_not_found` |
+| 409 | `auction_not_open` (not open, closed, or seller banned), `already_leading` |
+| 429 | throttled |
+
+- Throttle: 10 requests per minute per client IP, counting rejected requests, in-memory per instance (effective limit is 10 x instance count). The IP is correct only when `TRUST_PROXY_HOPS` matches the topology; at 0 behind a proxy all bidders share the proxy's bucket.
+- No code gate: bids are non-binding until the Stripe hold (HYR-11), so HYR-11 must ship before the API is exposed publicly.
+- Known leak: `409 already_leading` reveals whether the typed email currently leads that auction; the throttle limits probing.
+- Spec: `docs/specs/2026-10-19-hyr-40-bid-placement-endpoint-design.md`. Manual concurrency checks: `docs/qa/hyr-40-bid-concurrency-checklist.md`.
+
 ## Branded types
 
 Domain scalars (entity ids, `NormalizedEmail`, `Cents`, Stripe ids, `TrustScore`, `IanaTimezone`) are branded types living in `src/common`, which never imports `@prisma/client`. Validating constructors (`cents()`, `trustScore()`, `ianaTimezone()`, `normalizeEmail()`) build them. Only `*.db.ts` files and these constructors cast to a brand; services never do.
