@@ -30,6 +30,18 @@ export async function isPostgresReachable(adminUrl: string): Promise<boolean> {
   }
 }
 
+function isCi(env: NodeJS.ProcessEnv): boolean {
+  return env.CI === 'true' || env.CI === '1';
+}
+
+export function requireReachableInCi(reachable: boolean, env: NodeJS.ProcessEnv): boolean {
+  if (!reachable && isCi(env)) {
+    throw new Error('postgres_unreachable');
+  }
+
+  return reachable;
+}
+
 function restoreDatabaseUrl(previousUrl: string | undefined): void {
   if (previousUrl === undefined) {
     delete process.env.DATABASE_URL;
