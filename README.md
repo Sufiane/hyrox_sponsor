@@ -15,12 +15,16 @@ for the data model design.
 
 | Command | Runs |
 |---|---|
-| `npm run verify` | lint, lint:arch, typecheck, test, build (fail-fast) |
+| `npm run verify` | lint, lint:arch, typecheck, typecheck:workspaces, test, test:workspaces, build (fail-fast) |
 | `npm run verify:fast` | same without build |
 | `npm run test:integration` | Postgres concurrency tests (`*.int.spec.ts`), not part of `verify`. Needs `docker compose up -d postgres` (port 5435) or `TEST_ADMIN_DATABASE_URL` pointing at a superuser connection. Skips when Postgres is unreachable, but fails if `CI` is `true`/`1`. |
-| `npm run typecheck` | `tsc` on `tsconfig.build.json` (plain `tsconfig.json` has unrelated errors under `web/` and `shared/`). Excludes `*.spec.ts` and `web/`, so type errors there are not caught. |
+| `npm run typecheck` | `tsc` on `tsconfig.typecheck.json` (`src`, including `*.spec.ts` and `src/testing`; no emit). `web/` and `shared/` are covered by `typecheck:workspaces`. |
+| `npm run typecheck:workspaces` | `npm run check --workspaces --if-present` |
+| `npm run test:workspaces` | `npm test --workspaces --if-present` |
 
-A pre-push hook runs `verify:fast` (no build). It is tracked in `.githooks/` and installed by the root `prepare` script (`git config core.hooksPath .githooks`) on `npm install` / `npm ci`. The setting is shared across worktrees and overwrites a custom `core.hooksPath`. Reinstall with `npm run prepare`.
+`--if-present` means a workspace without a `check` or `test` script is silently skipped. Every workspace must expose `check` and `test` scripts to be covered. Web `vite build` is not part of `verify`.
+
+A pre-push hook runs `verify:fast` (api and shared/web checks and tests, no build). It is tracked in `.githooks/` and installed by the root `prepare` script (`git config core.hooksPath .githooks`) on `npm install` / `npm ci`. The setting is shared across worktrees and overwrites a custom `core.hooksPath`. Reinstall with `npm run prepare`.
 
 Bypass: `git push --no-verify`.
 
@@ -32,10 +36,6 @@ Bypass: `git push --no-verify`.
 npm ci
 npx prisma generate
 npm run verify
-npm run check -w shared
-npm run check -w web
-npm test -w shared
-npm test -w web
 ```
 
 Run the same commands locally to reproduce a CI failure. Mark `verify` as a required status check in branch protection for `main`.
