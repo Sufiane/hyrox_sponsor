@@ -25,16 +25,8 @@ jobs:
       - run: npm ci
       - name: Generate prisma client
         run: npx prisma generate
-      - name: Verify api
+      - name: Verify
         run: npm run verify
-      - name: Typecheck shared
-        run: npm run check -w shared
-      - name: Typecheck web
-        run: npm run check -w web
-      - name: Test shared
-        run: npm test -w shared
-      - name: Test web
-        run: npm test -w web
 
   integration:
     runs-on: ubuntu-24.04
