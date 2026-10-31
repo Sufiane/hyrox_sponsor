@@ -183,6 +183,12 @@ describe('PlaceBidUsecase', () => {
         expect(result.bid.amountCents).toBe(1000);
         expect(session.markOutbid).not.toHaveBeenCalled();
       });
+
+      it('returns the auction closeAt', async () => {
+        const result = await usecase.execute(input({ amountCents: cents(1000) }));
+
+        expect(result.closeAt).toEqual(auction.closeAt);
+      });
     });
 
     describe('and the bid is above the floor', () => {
@@ -216,6 +222,12 @@ describe('PlaceBidUsecase', () => {
 
       expect(result.previousLeader).toEqual({ bidId: 'bid-1', bidderId: 'bidder-1', amountCents: 5000 });
       expect(session.markOutbid).toHaveBeenCalledWith('bid-1');
+    });
+
+    it('returns the auction closeAt', async () => {
+      const result = await usecase.execute(input({ amountCents: cents(5500) }));
+
+      expect(result.closeAt).toEqual(auction.closeAt);
     });
 
     it('demotes the previous leader before inserting', async () => {
