@@ -184,6 +184,12 @@ An in-process job (`AuctionSchedulerTask`, every 60 s) drives the auction lifecy
 - Known leak: `409 already_leading` reveals whether the typed email currently leads that auction; the throttle limits probing.
 - Spec: `docs/specs/2026-10-19-hyr-40-bid-placement-endpoint-design.md`. Manual concurrency checks: `docs/qa/hyr-40-bid-concurrency-checklist.md`.
 
+## Stripe (HYR-1)
+
+Stripe Connect platform setup (Express connected accounts, US). Dashboard and webhook configuration: [`docs/runbooks/stripe-connect-setup.md`](docs/runbooks/stripe-connect-setup.md). Spec: `docs/specs/2026-10-31-hyr-1-stripe-connect-setup-design.md`.
+
+Environment variable table: added with the config slice (HYR-44).
+
 ## Branded types
 
 Domain scalars (entity ids, `NormalizedEmail`, `Cents`, Stripe ids, `TrustScore`, `IanaTimezone`) are branded types living in `src/common`, which never imports `@prisma/client`. Validating constructors (`cents()`, `trustScore()`, `ianaTimezone()`, `normalizeEmail()`) build them. Only `*.db.ts` files and these constructors cast to a brand; services never do.
