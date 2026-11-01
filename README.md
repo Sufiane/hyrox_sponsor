@@ -188,7 +188,15 @@ An in-process job (`AuctionSchedulerTask`, every 60 s) drives the auction lifecy
 
 Stripe Connect platform setup (Express connected accounts, US). Dashboard and webhook configuration: [`docs/runbooks/stripe-connect-setup.md`](docs/runbooks/stripe-connect-setup.md). Spec: `docs/specs/2026-10-31-hyr-1-stripe-connect-setup-design.md`.
 
-Environment variable table: added with the config slice (HYR-44).
+All five are required; the app refuses to boot (`env_invalid`) if any is missing or malformed. See `.env.example`.
+
+| Variable | Format |
+|---|---|
+| `STRIPE_SECRET_KEY` | `sk_...` or restricted `rk_...` |
+| `STRIPE_PLATFORM_WEBHOOK_SECRET` | `whsec_...` from the Platform endpoint |
+| `STRIPE_CONNECT_WEBHOOK_SECRET` | `whsec_...` from the Connect endpoint; must differ from the platform one |
+| `STRIPE_CONNECT_RETURN_URL` | URL the athlete lands on after onboarding |
+| `STRIPE_CONNECT_REFRESH_URL` | URL used when an onboarding link expired or was already used |
 
 ## Branded types
 

@@ -11,7 +11,20 @@ const storageEnv = {
   STORAGE_SECRET_ACCESS_KEY: 'secret',
 };
 const staffSecret = 't'.repeat(32);
-const validEnv = { JWT_SECRET: secret, STAFF_JWT_SECRET: staffSecret, DATABASE_URL: databaseUrl, ...storageEnv };
+const stripeEnv = {
+  STRIPE_SECRET_KEY: 'sk_test_0123456789abcdef',
+  STRIPE_PLATFORM_WEBHOOK_SECRET: 'whsec_platform0123456789',
+  STRIPE_CONNECT_WEBHOOK_SECRET: 'whsec_connect0123456789',
+  STRIPE_CONNECT_RETURN_URL: 'http://localhost:5173/account/payouts?return=1',
+  STRIPE_CONNECT_REFRESH_URL: 'http://localhost:5173/account/payouts?refresh=1',
+};
+const validEnv = {
+  JWT_SECRET: secret,
+  STAFF_JWT_SECRET: staffSecret,
+  DATABASE_URL: databaseUrl,
+  ...storageEnv,
+  ...stripeEnv,
+};
 
 describe('validateEnv', () => {
   let error: MockInstance;
@@ -98,9 +111,11 @@ describe('validateEnv', () => {
 
   describe('when JWT_SECRET is missing', () => {
     it('throws env_invalid', () => {
-      expect(() => validateEnv({ STAFF_JWT_SECRET: staffSecret, DATABASE_URL: databaseUrl, ...storageEnv })).toThrow(
-        'env_invalid',
-      );
+      const raw: Record<string, unknown> = { ...validEnv };
+
+      delete raw.JWT_SECRET;
+
+      expect(() => validateEnv(raw)).toThrow('env_invalid');
     });
   });
 
@@ -129,6 +144,68 @@ describe('validateEnv', () => {
       delete raw[name];
 
       expect(() => validateEnv(raw)).toThrow('env_invalid');
+    });
+  });
+
+  describe('when a Stripe variable is missing', () => {
+    it.each(Object.keys(stripeEnv))('throws env_invalid without %s', (name) => {
+      const raw: Record<string, unknown> = { ...validEnv };
+
+      delete raw[name];
+
+      expect(() => validateEnv(raw)).toThrow('env_invalid');
+    });
+
+    it('logs the variable name', () => {
+      const raw: Record<string, unknown> = { ...validEnv };
+
+      delete raw.STRIPE_SECRET_KEY;
+
+      expect(() => validateEnv(raw)).toThrow();
+
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('STRIPE_SECRET_KEY'));
+    });
+  });
+
+  describe('when a Stripe variable is malformed', () => {
+    it.each([
+      ['STRIPE_SECRET_KEY', 'pk_test_0123456789abcdef'],
+      ['STRIPE_SECRET_KEY', 'sk_'],
+      ['STRIPE_SECRET_KEY', 'rk_'],
+      ['STRIPE_PLATFORM_WEBHOOK_SECRET', 'secret_platform0123'],
+      ['STRIPE_PLATFORM_WEBHOOK_SECRET', 'whsec_'],
+      ['STRIPE_CONNECT_WEBHOOK_SECRET', 'whsec_'],
+      ['STRIPE_CONNECT_RETURN_URL', 'not a url'],
+      ['STRIPE_CONNECT_REFRESH_URL', ''],
+    ])('throws env_invalid for %s=%j', (name, value) => {
+      expect(() => validateEnv({ ...validEnv, [name]: value })).toThrow('env_invalid');
+    });
+
+    it('does not log the value', () => {
+      expect(() => validateEnv({ ...validEnv, STRIPE_SECRET_KEY: 'pk_leaky_value_123456' })).toThrow();
+
+      expect(JSON.stringify(error.mock.calls)).not.toContain('pk_leaky_value_123456');
+    });
+  });
+
+  describe('when a restricted key is used', () => {
+    it('accepts it', () => {
+      const env = validateEnv({ ...validEnv, STRIPE_SECRET_KEY: 'rk_test_0123456789abcdef' });
+
+      expect(env.STRIPE_SECRET_KEY).toBe('rk_test_0123456789abcdef');
+    });
+  });
+
+  describe('when the two webhook secrets are equal', () => {
+    beforeEach(() => {
+      expect(() =>
+        validateEnv({ ...validEnv, STRIPE_CONNECT_WEBHOOK_SECRET: stripeEnv.STRIPE_PLATFORM_WEBHOOK_SECRET }),
+      ).toThrow('env_invalid');
+    });
+
+    it('logs the reason without the value', () => {
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('stripe_webhook_secrets_must_differ'));
+      expect(JSON.stringify(error.mock.calls)).not.toContain(stripeEnv.STRIPE_PLATFORM_WEBHOOK_SECRET);
     });
   });
 
@@ -204,9 +281,7 @@ describe('validateEnv TRUST_PROXY_HOPS', () => {
 
   describe('when it is a string integer from 0 to 10', () => {
     it.each(['0', '1', '10'])('accepts %s as a number', (value) => {
-      expect(validateEnv({ ...validEnv, TRUST_PROXY_HOPS: value }).TRUST_PROXY_HOPS).toBe(
-        Number(value),
-      );
+      expect(validateEnv({ ...validEnv, TRUST_PROXY_HOPS: value }).TRUST_PROXY_HOPS).toBe(Number(value));
     });
   });
 
@@ -226,17 +301,13 @@ describe('validateEnv AUCTION_SCHEDULER_ENABLED', () => {
 
   describe('when set to the string false', () => {
     it('parses to false', () => {
-      expect(validateEnv({ ...validEnv, AUCTION_SCHEDULER_ENABLED: 'false' }).AUCTION_SCHEDULER_ENABLED).toBe(
-        false,
-      );
+      expect(validateEnv({ ...validEnv, AUCTION_SCHEDULER_ENABLED: 'false' }).AUCTION_SCHEDULER_ENABLED).toBe(false);
     });
   });
 
   describe('when set to the string true', () => {
     it('parses to true', () => {
-      expect(validateEnv({ ...validEnv, AUCTION_SCHEDULER_ENABLED: 'true' }).AUCTION_SCHEDULER_ENABLED).toBe(
-        true,
-      );
+      expect(validateEnv({ ...validEnv, AUCTION_SCHEDULER_ENABLED: 'true' }).AUCTION_SCHEDULER_ENABLED).toBe(true);
     });
   });
 
