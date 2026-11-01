@@ -110,6 +110,24 @@ export class EnvironmentVariables {
   @IsUrl({ require_tld: false })
   STORAGE_ENDPOINT?: string;
 
+  @IsString()
+  @Matches(/^(sk|rk)_.+/)
+  STRIPE_SECRET_KEY!: string;
+
+  @IsString()
+  @Matches(/^whsec_.+/)
+  STRIPE_PLATFORM_WEBHOOK_SECRET!: string;
+
+  @IsString()
+  @Matches(/^whsec_.+/)
+  STRIPE_CONNECT_WEBHOOK_SECRET!: string;
+
+  @IsUrl({ require_tld: false })
+  STRIPE_CONNECT_RETURN_URL!: string;
+
+  @IsUrl({ require_tld: false })
+  STRIPE_CONNECT_REFRESH_URL!: string;
+
   @Transform(({ value }: { value: unknown }) => {
     if (value === 'true') {
       return true;
@@ -139,6 +157,12 @@ export function validateEnv(raw: Record<string, unknown>): EnvironmentVariables 
 
   if (env.STAFF_JWT_SECRET === env.JWT_SECRET) {
     new Logger('Env').error('staff_jwt_secret_must_differ_from_jwt_secret');
+
+    throw new Error('env_invalid');
+  }
+
+  if (env.STRIPE_PLATFORM_WEBHOOK_SECRET === env.STRIPE_CONNECT_WEBHOOK_SECRET) {
+    new Logger('Env').error('stripe_webhook_secrets_must_differ');
 
     throw new Error('env_invalid');
   }
