@@ -1,6 +1,7 @@
 import { Logger, type ArgumentsHost } from '@nestjs/common';
 import { type MockInstance } from 'vitest';
 import { ConflictError, DomainError, ForbiddenError, InvalidValueError, NotFoundError } from './domain-error';
+import { StripeMisconfiguredError, StripeRejectedError, StripeUnavailableError } from './stripe-errors';
 import { DomainErrorFilter } from './domain-error.filter';
 
 class UnmappedError extends DomainError {}
@@ -75,6 +76,43 @@ describe('DomainErrorFilter', () => {
     it('responds 409 with the Conflict body', () => {
       expect(status).toHaveBeenCalledWith(409);
       expect(json).toHaveBeenCalledWith({ statusCode: 409, message: 'race_entry_date_conflict', error: 'Conflict' });
+    });
+  });
+
+  describe('when a StripeUnavailableError is caught', () => {
+    beforeEach(() => {
+      filter.catch(new StripeUnavailableError(), host);
+    });
+
+    it('responds 502 with the Bad Gateway body', () => {
+      expect(status).toHaveBeenCalledWith(502);
+      expect(json).toHaveBeenCalledWith({ statusCode: 502, message: 'stripe_unavailable', error: 'Bad Gateway' });
+    });
+  });
+
+  describe('when a StripeMisconfiguredError is caught', () => {
+    beforeEach(() => {
+      filter.catch(new StripeMisconfiguredError(), host);
+    });
+
+    it('responds 502 with the Bad Gateway body', () => {
+      expect(status).toHaveBeenCalledWith(502);
+      expect(json).toHaveBeenCalledWith({ statusCode: 502, message: 'stripe_misconfigured', error: 'Bad Gateway' });
+    });
+  });
+
+  describe('when a StripeRejectedError is caught', () => {
+    beforeEach(() => {
+      filter.catch(new StripeRejectedError(), host);
+    });
+
+    it('responds 422 with the Unprocessable Entity body', () => {
+      expect(status).toHaveBeenCalledWith(422);
+      expect(json).toHaveBeenCalledWith({
+        statusCode: 422,
+        message: 'stripe_request_rejected',
+        error: 'Unprocessable Entity',
+      });
     });
   });
 
