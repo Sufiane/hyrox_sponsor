@@ -1,5 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus, Logger } from '@nestjs/common';
 import type { Response } from 'express';
+import { StripeMisconfiguredError, StripeRejectedError, StripeUnavailableError } from './stripe-errors';
 import { ConflictError, DomainError, ForbiddenError, InvalidValueError, NotFoundError } from './domain-error';
 
 type DomainErrorClass = abstract new (...args: never[]) => DomainError;
@@ -9,6 +10,9 @@ const STATUS_BY_ERROR: ReadonlyArray<readonly [DomainErrorClass, HttpStatus]> = 
   [ForbiddenError, HttpStatus.FORBIDDEN],
   [NotFoundError, HttpStatus.NOT_FOUND],
   [ConflictError, HttpStatus.CONFLICT],
+  [StripeRejectedError, HttpStatus.UNPROCESSABLE_ENTITY],
+  [StripeUnavailableError, HttpStatus.BAD_GATEWAY],
+  [StripeMisconfiguredError, HttpStatus.BAD_GATEWAY],
 ];
 
 const ERROR_LABEL_BY_STATUS: Partial<Record<HttpStatus, string>> = {
@@ -16,6 +20,8 @@ const ERROR_LABEL_BY_STATUS: Partial<Record<HttpStatus, string>> = {
   [HttpStatus.FORBIDDEN]: 'Forbidden',
   [HttpStatus.NOT_FOUND]: 'Not Found',
   [HttpStatus.CONFLICT]: 'Conflict',
+  [HttpStatus.UNPROCESSABLE_ENTITY]: 'Unprocessable Entity',
+  [HttpStatus.BAD_GATEWAY]: 'Bad Gateway',
   [HttpStatus.INTERNAL_SERVER_ERROR]: 'Internal Server Error',
 };
 

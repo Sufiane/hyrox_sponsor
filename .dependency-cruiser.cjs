@@ -38,6 +38,18 @@ module.exports = {
         path: 'node_modules/@aws-sdk',
       },
     },
+    {
+      name: 'no-stripe-sdk-outside-stripe-adapter',
+      comment: 'Only the Stripe adapter may import the Stripe SDK; everything else uses the StripeGateway port.',
+      severity: 'error',
+      from: {
+        path: '^src/',
+        pathNot: '^src/stripe/stripe\\.adapter\\.ts$',
+      },
+      to: {
+        path: 'node_modules/stripe',
+      },
+    },
   ],
   options: {
     doNotFollow: {

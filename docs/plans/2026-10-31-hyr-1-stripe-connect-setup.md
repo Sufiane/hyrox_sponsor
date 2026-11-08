@@ -88,7 +88,7 @@ Files:
 - `package.json` / `package-lock.json`: add `stripe` at exact version (install, then strip caret; read resolved version from lockfile).
 - New `src/stripe/stripe-gateway.ts` (abstract class + `ConnectAccountSnapshot`, `StripeEvent`, input types).
 - New `src/stripe/stripe.adapter.ts`, `src/stripe/stripe.adapter.spec.ts`.
-- New `src/stripe/stripe-errors.ts` (`StripeUnavailableError` 502 `stripe_unavailable`, `StripeRejectedError` 422 `stripe_request_rejected`; extend the `DomainError` base in `src/common/domain-error.ts`; confirm `DomainErrorFilter` maps the status, extend its table if needed with spec).
+- New `src/common/stripe-errors.ts` (`StripeUnavailableError` 502 `stripe_unavailable`, `StripeRejectedError` 422 `stripe_request_rejected`, `StripeMisconfiguredError` 502 `stripe_misconfigured` for Stripe authentication/permission failures (revoked key or missing Connect permission, needs a human; logged at error level); extend the `DomainError` base in `src/common/domain-error.ts`; confirm `DomainErrorFilter` maps the status, extend its table if needed with spec).
 - New `src/stripe/stripe.module.ts` (provides `StripeGateway` via `StripeAdapter`, exports it; reads config via `ConfigService`).
 - Modify `.dependency-cruiser.cjs`: rule `no-stripe-sdk-outside-stripe-adapter` (from `^src/` except `^src/stripe/stripe\.adapter\.ts$` to `node_modules/stripe`).
 - Modify `src/app.module.ts`: import `StripeModule`.
@@ -158,6 +158,7 @@ Files:
 - New `src/connect/connect.service.ts` (+ spec): `createOnboardingLink(athleteId)`, `getStatus(athleteId)`.
 - New `src/connect/connect.module.ts`: imports `StripeModule`, `AthletesModule`, `AuthModule` (guard).
 - New `src/connect/dto/onboarding-link-response.ts`, `connect-status-response.ts`.
+- Account id persistence: store with a compare-and-set write and treat an existing stored id as authoritative (the idempotency key `connect-account:<athleteId>` only protects ~24h).
 - Modify `src/app.module.ts`.
 - README "Connect" route table.
 - `connect.int.spec.ts`: two concurrent link requests produce exactly one stored account id.
