@@ -108,18 +108,20 @@ Branch `hyr-46`. Backend + one additive migration. Size ~450.
 
 Scope: raw-body webhook receive, signature verification via gateway, persisted dedupe, handler registry. No handlers yet.
 
+Concurrency and retry: the event row carries a nullable `claimed_at` lease. After insert, the service claims the row (`claim(id, now - 60s)`: only when unprocessed and unclaimed or claimed before the lease cutoff); a failed claim means the event is done or in flight and returns 200 without dispatch, so concurrent duplicates run the handler once. Only success sets `processedAt`; on handler failure the service releases the claim (`release(id)`: `claimed_at = null` where unprocessed) and returns 500, so Stripe's immediate retry re-claims and re-dispatches. Lease expiry covers a crash between claim and release. Events with no registered handler are still marked processed: handlers re-read current state from Stripe, so skipping past unhandled events is safe.
+
 Files:
-- Modify `prisma/schema.prisma`: `StripeWebhookEvent` model + `StripeWebhookChannel` enum (`@@map` snake_case); new migration under `prisma/migrations/2026110x.../`.
+- Modify `prisma/schema.prisma`: `StripeWebhookEvent` model (incl. `claimedAt`) + `StripeWebhookChannel` enum (`@@map` snake_case); new migration under `prisma/migrations/2026110x.../`.
 - Modify `src/main.ts`: `NestFactory.create(AppModule, { rawBody: true })`.
 - New `src/stripe/webhooks/stripe-webhook.controller.ts` (+ spec): two routes, `@SkipThrottle()`, no auth guard, 200 empty body.
 - New `src/stripe/webhooks/stripe-webhook.service.ts` (+ spec): verify, record, dispatch, mark processed.
-- New `src/stripe/webhooks/stripe-webhook-event.db.ts` (+ spec): `insertIfNew` (return `false` on `P2002` via `src/common/prisma-error-codes.ts`), `markProcessed`, `findById`.
+- New `src/stripe/webhooks/stripe-webhook-event.db.ts` (+ spec): `insertIfNew` (return `false` on `P2002` via `src/common/prisma-error-codes.ts`), `claim`, `release`, `markProcessed`.
 - New `src/stripe/webhooks/stripe-event-handler.ts`: abstract/token for the multi-provider handler interface (`handles(type)`, `handle(event)`).
 - Modify `src/stripe/stripe.module.ts` to register controller, service, db, handler token (empty list). Needs `PrismaModule`.
 - New `stripe-webhook.int.spec.ts`: concurrent duplicate event ids -> one row, handler called once.
 
 Tasks:
-- [ ] Failing service specs by condition: valid new event, duplicate event (no dispatch), bad signature (400 `stripe_signature_invalid`), handler throws (500, row stays unprocessed, retry re-dispatches), no matching handler (processed, logged at debug).
+- [ ] Failing service specs by condition: valid new event, duplicate event (claim fails, no dispatch), bad signature (400 `stripe_signature_invalid`), handler throws (500, row stays unprocessed, retry re-dispatches), no matching handler (processed, logged at debug).
 - [ ] Implement db, service, controller, module wiring, `rawBody`.
 - [ ] Controller spec via Nest testing proves JSON body parsing on another route is unchanged.
 - [ ] Migration applied locally; `npx prisma generate`; `npm run verify`; `npm run test:integration` for the int spec.
