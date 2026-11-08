@@ -389,3 +389,21 @@ model TrustScoreEvent {
   @@index([athleteId])
   @@map("trust_score_events")
 }
+
+enum StripeWebhookChannel {
+  PLATFORM
+  CONNECT
+
+  @@map("stripe_webhook_channel")
+}
+
+model StripeWebhookEvent {
+  id          String               @id
+  type        String
+  channel     StripeWebhookChannel
+  receivedAt  DateTime             @default(now()) @map("received_at") @db.Timestamptz(3)
+  claimedAt   DateTime?            @map("claimed_at") @db.Timestamptz(3)
+  processedAt DateTime?            @map("processed_at") @db.Timestamptz(3)
+
+  @@map("stripe_webhook_events")
+}

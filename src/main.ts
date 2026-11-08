@@ -9,7 +9,7 @@ import { createValidationPipe } from './common/validation-pipe';
 import type { EnvironmentVariables } from './config/env.validation';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   const config = app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
 
   applyTrustProxy(app, config.get('TRUST_PROXY_HOPS', { infer: true }));
