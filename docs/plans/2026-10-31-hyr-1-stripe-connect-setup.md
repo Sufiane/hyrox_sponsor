@@ -161,6 +161,7 @@ Files:
 - New `src/connect/connect.module.ts`: imports `StripeModule`, `AthletesModule`, `AuthModule` (guard).
 - New `src/connect/dto/onboarding-link-response.ts`, `connect-status-response.ts`.
 - Account id persistence: store with a compare-and-set write and treat an existing stored id as authoritative (the idempotency key `connect-account:<athleteId>` only protects ~24h).
+- `setStripeConnectAccountIdIfUnset` returns null for athlete missing, id already stored, or id taken by another athlete (unique violation): the service must `findById` and treat the stored id as authoritative.
 - Modify `src/app.module.ts`.
 - README "Connect" route table.
 - `connect.int.spec.ts`: two concurrent link requests produce exactly one stored account id.
