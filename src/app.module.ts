@@ -19,6 +19,7 @@ import { PublicResultsModule } from './public-results/public-results.module';
 import { AuthModule } from './auth/auth.module';
 import { StaffAuthModule } from './staff-auth/staff-auth.module';
 import { StripeModule } from './stripe/stripe.module';
+import { ConnectModule } from './connect/connect.module';
 import { DomainErrorFilter } from './common/domain-error.filter';
 import { validateEnv } from './config/env.validation';
 
@@ -42,6 +43,7 @@ import { validateEnv } from './config/env.validation';
     AuthModule,
     StaffAuthModule,
     StripeModule,
+    ConnectModule,
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
   ],
   providers: [

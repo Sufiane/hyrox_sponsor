@@ -4,6 +4,6 @@ import { AthleteService } from './athlete.service';
 
 @Module({
   providers: [AthleteService, AthleteDb],
-  exports: [AthleteService],
+  exports: [AthleteService, AthleteDb],
 })
 export class AthletesModule {}

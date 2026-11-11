@@ -124,7 +124,7 @@ One additive migration for the event log, one for athlete readiness (separate sl
 Hexagonal: `connect.controller.ts` -> `connect.service.ts` -> `connect.db.ts`; Stripe only via `StripeGateway`. The flow is simple orchestration, so no usecase layer.
 
 - `POST /athletes/me/connect/onboarding-link` (JwtAuthGuard): load athlete (404 `athlete_not_found`), refuse banned (403 `athlete_banned`) and non-adult (403 `athlete_not_adult`). If no account id: create via gateway, then `setStripeConnectAccountIdIfUnset` (same compare-and-set pattern as `BidderDb.setStripeCustomerIdIfUnset`); if the CAS loses the race, use the stored id. Create account link, return `{ url, expiresAt }`. A `READY` athlete still gets a link (Stripe account-update flow) - never an error.
-- `GET /athletes/me/connect/status` (JwtAuthGuard): returns `{ status, requirementsDue }`. Reads DB; if the account is `INCOMPLETE` and `syncedAt` is older than a short TTL it does NOT call Stripe (webhook is the sync path), keeping the GET cheap. A `?refresh=true` is rejected as scope creep; the return page polls status (see 4.8).
+- `GET /athletes/me/connect/status` (JwtAuthGuard): returns `{ status }`. Reads DB only and never calls Stripe (webhook is the sync path), keeping the GET cheap. `requirementsDue` is deferred to a follow-up: it needs a new column filled by the `account.updated` sync (slice G). A `?refresh=true` is rejected as scope creep; the return page polls status (see 4.8).
 - Throttle: stricter per-athlete limit on the link route (it hits Stripe).
 - Error codes: `athlete_not_found`, `athlete_banned`, `athlete_not_adult`, `stripe_unavailable`, `stripe_request_rejected`.
 
