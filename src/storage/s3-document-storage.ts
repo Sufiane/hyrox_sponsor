@@ -11,13 +11,11 @@ import type { EnvironmentVariables } from '../config/env.validation';
 import { DocumentStorage, type StorageKey } from './document-storage';
 
 @Injectable()
-export class S3DocumentStorage extends DocumentStorage {
+export class S3DocumentStorage implements DocumentStorage {
   private readonly client: S3Client;
   private readonly bucket: string;
 
   constructor(config: ConfigService<EnvironmentVariables, true>) {
-    super();
-
     const endpoint = config.get('STORAGE_ENDPOINT', { infer: true });
 
     this.bucket = config.get('STORAGE_BUCKET', { infer: true });
