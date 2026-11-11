@@ -23,7 +23,9 @@
     "test:workspaces": "npm test --workspaces --if-present",
     "verify:fast": "npm run lint && npm run lint:arch && npm run typecheck && npm run typecheck:workspaces && npm test && npm run test:workspaces",
     "verify": "npm run verify:fast && npm run build",
-    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
+    "format": "prettier --write \"src/**/*.ts\" \"shared/src/**/*.ts\" \"web/src/**/*.{ts,svelte}\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"shared/src/**/*.ts\" \"web/src/**/*.{ts,svelte}\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1146.0",
@@ -55,6 +57,8 @@
     "@typescript-eslint/parser": "8.70.1",
     "dependency-cruiser": "18.4.0",
     "eslint": "10.11.0",
+    "prettier": "3.9.10",
+    "prettier-plugin-svelte": "4.1.1",
     "prisma": "6.19.3",
     "tsc-alias": "1.9.7",
     "typescript": "6.0.3",

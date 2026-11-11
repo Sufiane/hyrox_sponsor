@@ -1,0 +1,15 @@
+node_modules
+dist
+build
+coverage
+.svelte-kit
+web/.svelte-kit
+prisma/migrations
+package-lock.json
+*.prisma
+.context
+.serena
+.conductor
+docs
+README.md
+**/generated
