@@ -71,15 +71,16 @@ describe('AthleteDb connect readiness', () => {
   });
 
   describe('updateConnectReadiness', () => {
-    it('writes the readiness columns', async () => {
-      const syncedAt = new Date('2026-11-02T10:00:00Z');
-      prisma.athlete.update.mockResolvedValue(row as never);
+    const syncedAt = new Date('2026-11-02T10:00:00Z');
+    const readiness = { detailsSubmitted: true, payoutsEnabled: false, syncedAt };
 
-      expect(await db.updateConnectReadiness(id, { detailsSubmitted: true, payoutsEnabled: false, syncedAt })).toBe(
-        row,
-      );
-      expect(prisma.athlete.update).toHaveBeenCalledWith({
-        where: { id },
+    it('writes only when the stored sync time is null or older', async () => {
+      prisma.athlete.updateMany.mockResolvedValue({ count: 1 });
+
+      await db.updateConnectReadiness(id, readiness);
+
+      expect(prisma.athlete.updateMany).toHaveBeenCalledWith({
+        where: { id, OR: [{ stripeConnectSyncedAt: null }, { stripeConnectSyncedAt: { lt: syncedAt } }] },
         data: {
           stripeConnectDetailsSubmitted: true,
           stripeConnectPayoutsEnabled: false,
@@ -88,13 +89,19 @@ describe('AthleteDb connect readiness', () => {
       });
     });
 
-    describe('when the athlete does not exist', () => {
-      it('returns null', async () => {
-        prisma.athlete.update.mockRejectedValue(prismaError('P2025'));
+    describe('when a row was updated', () => {
+      it('returns true', async () => {
+        prisma.athlete.updateMany.mockResolvedValue({ count: 1 });
 
-        expect(
-          await db.updateConnectReadiness(id, { detailsSubmitted: true, payoutsEnabled: true, syncedAt: new Date() }),
-        ).toBeNull();
+        expect(await db.updateConnectReadiness(id, readiness)).toBe(true);
+      });
+    });
+
+    describe('when no row matched', () => {
+      it('returns false', async () => {
+        prisma.athlete.updateMany.mockResolvedValue({ count: 0 });
+
+        expect(await db.updateConnectReadiness(id, readiness)).toBe(false);
       });
     });
   });

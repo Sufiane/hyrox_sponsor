@@ -9,6 +9,7 @@ import {
 } from '../../testing/throwaway-database';
 import type { StripeEvent, StripeGateway } from '../stripe-gateway';
 import type { StripeEventHandler } from './stripe-event-handler';
+import { StripeEventHandlerRegistry } from './stripe-event-handler-registry';
 import { StripeWebhookEventDb } from './stripe-webhook-event.db';
 import { StripeWebhookService } from './stripe-webhook.service';
 
@@ -34,7 +35,11 @@ describe.skipIf(!reachable)('StripeWebhookService (postgres)', () => {
     const gateway = { constructWebhookEvent: (): StripeEvent => eventWithId(id) } as unknown as StripeGateway;
     const handler = { handles: (): boolean => true, handle } as unknown as StripeEventHandler;
 
-    return new StripeWebhookService(gateway, db, [handler]);
+    const registry = new StripeEventHandlerRegistry();
+
+    registry.register(handler);
+
+    return new StripeWebhookService(gateway, db, registry);
   }
 
   beforeAll(async () => {

@@ -23,6 +23,28 @@ export class ConnectService {
     return this.gateway.createOnboardingLink(accountId);
   }
 
+  async syncReadiness(accountId: StripeConnectAccountId): Promise<void> {
+    const athlete = await this.athletes.findByStripeConnectAccountId(accountId);
+
+    if (!athlete) {
+      this.logger.warn(`No athlete for Connect account ${accountId}`);
+
+      return;
+    }
+
+    const syncedAt = new Date();
+    const snapshot = await this.gateway.retrieveAccount(accountId);
+    const applied = await this.athletes.updateConnectReadiness(athlete.id, {
+      detailsSubmitted: snapshot.detailsSubmitted,
+      payoutsEnabled: snapshot.payoutsEnabled,
+      syncedAt,
+    });
+
+    if (!applied) {
+      this.logger.debug(`Readiness for athlete ${athlete.id} not written: a newer sync exists or athlete is gone`);
+    }
+  }
+
   async getStatus(athleteId: AthleteId): Promise<ConnectStatus> {
     const athlete = await this.requireAthlete(athleteId);
 

@@ -1,7 +1,7 @@
-import { Inject, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { InvalidValueError } from '../../common/domain-error';
 import { StripeGateway, type StripeEvent, type WebhookChannel } from '../stripe-gateway';
-import { STRIPE_EVENT_HANDLERS, StripeEventHandler } from './stripe-event-handler';
+import { StripeEventHandlerRegistry } from './stripe-event-handler-registry';
 import { StripeWebhookEventDb } from './stripe-webhook-event.db';
 
 const CLAIM_LEASE_MS = 60_000;
@@ -13,7 +13,7 @@ export class StripeWebhookService {
   constructor(
     private readonly gateway: StripeGateway,
     private readonly db: StripeWebhookEventDb,
-    @Inject(STRIPE_EVENT_HANDLERS) private readonly handlers: readonly StripeEventHandler[],
+    private readonly registry: StripeEventHandlerRegistry,
   ) {}
 
   async receive(input: {
@@ -43,7 +43,7 @@ export class StripeWebhookService {
   }
 
   private async dispatch(event: StripeEvent): Promise<void> {
-    const matching = this.handlers.filter((handler) => handler.handles(event.type));
+    const matching = this.registry.handlersFor(event.type);
 
     if (matching.length === 0) {
       this.logger.debug(`No handler for webhook ${event.id} (${event.type})`);

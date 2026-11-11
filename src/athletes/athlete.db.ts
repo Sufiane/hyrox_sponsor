@@ -78,24 +78,19 @@ export class AthleteDb {
   async updateConnectReadiness(
     id: AthleteId,
     readiness: { detailsSubmitted: boolean; payoutsEnabled: boolean; syncedAt: Date },
-  ): Promise<AthleteRow | null> {
-    try {
-      const athlete = await this.prisma.athlete.update({
-        where: { id },
-        data: {
-          stripeConnectDetailsSubmitted: readiness.detailsSubmitted,
-          stripeConnectPayoutsEnabled: readiness.payoutsEnabled,
-          stripeConnectSyncedAt: readiness.syncedAt,
-        },
-      });
+  ): Promise<boolean> {
+    const result = await this.prisma.athlete.updateMany({
+      where: {
+        id,
+        OR: [{ stripeConnectSyncedAt: null }, { stripeConnectSyncedAt: { lt: readiness.syncedAt } }],
+      },
+      data: {
+        stripeConnectDetailsSubmitted: readiness.detailsSubmitted,
+        stripeConnectPayoutsEnabled: readiness.payoutsEnabled,
+        stripeConnectSyncedAt: readiness.syncedAt,
+      },
+    });
 
-      return athlete as AthleteRow;
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === RECORD_NOT_FOUND) {
-        return null;
-      }
-
-      throw error;
-    }
+    return result.count > 0;
   }
 }
