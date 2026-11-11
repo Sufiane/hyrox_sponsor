@@ -198,6 +198,15 @@ All five are required; the app refuses to boot (`env_invalid`) if any is missing
 | `STRIPE_CONNECT_RETURN_URL` | URL the athlete lands on after onboarding |
 | `STRIPE_CONNECT_REFRESH_URL` | URL used when an onboarding link expired or was already used |
 
+### Connect onboarding (HYR-48)
+
+Athlete-only routes (JWT). The Stripe account is created lazily on the first link request and stored with a compare-and-set; if two requests race, the stored id wins and the extra Stripe account is orphaned (the gateway idempotency key `connect-account:<athleteId>` prevents this in practice, but only for about 24h).
+
+| Route | Success | Notes |
+|---|---|---|
+| `POST /athletes/me/connect/onboarding-link` | 201 `{ url, expiresAt }` | 5/min; `READY` athletes still get a link; errors `athlete_not_found` (404), `athlete_banned` (403), `athlete_not_adult` (403), `connect_account_conflict` (409), `stripe_unavailable` (502) |
+| `GET /athletes/me/connect/status` | 200 `{ status }` | `NOT_STARTED`, `INCOMPLETE`, `RESTRICTED` or `READY`; reads the database only, never calls Stripe; `athlete_not_found` (404) |
+
 ## Branded types
 
 Domain scalars (entity ids, `NormalizedEmail`, `Cents`, Stripe ids, `TrustScore`, `IanaTimezone`) are branded types living in `src/common`, which never imports `@prisma/client`. Validating constructors (`cents()`, `trustScore()`, `ianaTimezone()`, `normalizeEmail()`) build them. Only `*.db.ts` files and these constructors cast to a brand; services never do.
