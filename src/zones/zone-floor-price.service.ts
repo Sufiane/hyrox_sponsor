@@ -44,11 +44,7 @@ export class ZoneFloorPriceService {
     return ZONE_ORDER.map((zone) => this.toView(zone, savedByZone.get(zone)));
   }
 
-  async setFloorPrice(
-    athleteId: AthleteId,
-    zone: BodyZoneValue,
-    floorPriceCents: number,
-  ): Promise<ZoneFloorPriceView> {
+  async setFloorPrice(athleteId: AthleteId, zone: BodyZoneValue, floorPriceCents: number): Promise<ZoneFloorPriceView> {
     const validCents = this.validate(athleteId, zone, floorPriceCents);
     const saved = await this.db.upsert(athleteId, zone, validCents);
 

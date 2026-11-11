@@ -30,15 +30,16 @@ describe('review race result dtos', () => {
     });
 
     describe('when submittedAt is invalid', () => {
-      it.each([['garbage', 'nope'], ['missing', undefined], ['a number', 5]])(
-        'rejects with validation_failed for %s',
-        async (_name, submittedAt) => {
-          const result = createValidationPipe().transform({ submittedAt }, approveMetadata);
+      it.each([
+        ['garbage', 'nope'],
+        ['missing', undefined],
+        ['a number', 5],
+      ])('rejects with validation_failed for %s', async (_name, submittedAt) => {
+        const result = createValidationPipe().transform({ submittedAt }, approveMetadata);
 
-          await expect(result).rejects.toThrow(BadRequestException);
-          await expect(result).rejects.toThrow('validation_failed');
-        },
-      );
+        await expect(result).rejects.toThrow(BadRequestException);
+        await expect(result).rejects.toThrow('validation_failed');
+      });
     });
   });
 
@@ -55,17 +56,18 @@ describe('review race result dtos', () => {
     });
 
     describe('when the reason is invalid', () => {
-      it.each([['blank', '   '], ['501 characters', 'a'.repeat(501)], ['missing', undefined]])(
-        'rejects with validation_failed for %s',
-        async (_name, reason) => {
-          const result = createValidationPipe().transform(
-            { submittedAt: '2026-10-02T09:00:00.123Z', reason },
-            rejectMetadata,
-          );
+      it.each([
+        ['blank', '   '],
+        ['501 characters', 'a'.repeat(501)],
+        ['missing', undefined],
+      ])('rejects with validation_failed for %s', async (_name, reason) => {
+        const result = createValidationPipe().transform(
+          { submittedAt: '2026-10-02T09:00:00.123Z', reason },
+          rejectMetadata,
+        );
 
-          await expect(result).rejects.toThrow('validation_failed');
-        },
-      );
+        await expect(result).rejects.toThrow('validation_failed');
+      });
     });
   });
 });

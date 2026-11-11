@@ -51,9 +51,7 @@ export class RaceEntryService {
     return this.logRaceUsecase.execute(athleteId, input);
   }
 
-  submitVerificationDocument(
-    input: SubmitVerificationDocumentInput,
-  ): Promise<SubmitVerificationDocumentResult> {
+  submitVerificationDocument(input: SubmitVerificationDocumentInput): Promise<SubmitVerificationDocumentResult> {
     return this.submitVerificationDocumentUsecase.execute(input);
   }
 
@@ -97,10 +95,7 @@ export class RaceEntryService {
     }
   }
 
-  async getVerificationStatus(
-    athleteId: AthleteId,
-    raceEntryId: RaceEntryId,
-  ): Promise<VerificationStatusView> {
+  async getVerificationStatus(athleteId: AthleteId, raceEntryId: RaceEntryId): Promise<VerificationStatusView> {
     const entry = await this.db.findById(raceEntryId);
 
     if (!entry || entry.athleteId !== athleteId) {

@@ -167,14 +167,14 @@ export class PublicResultsDb {
     return this.listRows(publicEntryWhere({ raceIds: [id], division, statuses: ['PENDING'] }), offset, limit);
   }
 
-  private async listRows(
-    where: Prisma.RaceEntryWhereInput,
-    offset: number,
-    limit: number,
-  ): Promise<PublicResultRow[]> {
+  private async listRows(where: Prisma.RaceEntryWhereInput, offset: number, limit: number): Promise<PublicResultRow[]> {
     const entries = await this.prisma.raceEntry.findMany({
       where,
-      orderBy: [{ raceResult: { finishTimeSeconds: 'asc' } }, { athlete: { name: 'asc' } }, { raceResult: { id: 'asc' } }],
+      orderBy: [
+        { raceResult: { finishTimeSeconds: 'asc' } },
+        { athlete: { name: 'asc' } },
+        { raceResult: { id: 'asc' } },
+      ],
       skip: offset,
       take: limit,
       select: {

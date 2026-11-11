@@ -37,10 +37,10 @@ describe('StaffRaceEntryReviewController', () => {
     });
 
     it('sets Cache-Control no-store on the document url route', () => {
-      const headers = Reflect.getMetadata(
-        '__headers__',
-        StaffRaceEntryReviewController.prototype.getDocumentUrl,
-      ) as { name: string; value: string }[];
+      const headers = Reflect.getMetadata('__headers__', StaffRaceEntryReviewController.prototype.getDocumentUrl) as {
+        name: string;
+        value: string;
+      }[];
 
       expect(headers).toContainEqual({ name: 'Cache-Control', value: 'no-store' });
     });
@@ -58,7 +58,11 @@ describe('StaffRaceEntryReviewController', () => {
   describe('getDocumentUrl', () => {
     describe('when the entry has a document', () => {
       it('returns the access object', async () => {
-        const access = { url: 'https://signed', expiresAt: new Date(), documentKey: reviewedDocumentKey } as DocumentAccess;
+        const access = {
+          url: 'https://signed',
+          expiresAt: new Date(),
+          documentKey: reviewedDocumentKey,
+        } as DocumentAccess;
         service.getDocumentAccess.mockResolvedValue(access);
 
         await expect(controller.getDocumentUrl(params)).resolves.toBe(access);

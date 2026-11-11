@@ -40,7 +40,11 @@ describe('runStaffCommand', () => {
 
         expect(code).toBe(0);
         expect(hasher.hash).toHaveBeenCalledWith(GENERATED);
-        expect(staffService.create).toHaveBeenCalledWith({ name: 'Jane Doe', email: 'jane@example.com', passwordHash: hash });
+        expect(staffService.create).toHaveBeenCalledWith({
+          name: 'Jane Doe',
+          email: 'jane@example.com',
+          passwordHash: hash,
+        });
       });
 
       it('writes the password exactly once', async () => {

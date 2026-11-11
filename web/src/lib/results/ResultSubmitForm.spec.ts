@@ -99,9 +99,7 @@ describe('ResultSubmitForm', () => {
         await fillTime('1', '2', '5');
         await userEvent.click(screen.getByRole('button', { name: 'Submit result' }));
 
-        expect(await screen.findByRole('alert')).toHaveTextContent(
-          'Add a photo of the finish clock.',
-        );
+        expect(await screen.findByRole('alert')).toHaveTextContent('Add a photo of the finish clock.');
         expect(submitResult).not.toHaveBeenCalled();
       });
     });
@@ -109,11 +107,9 @@ describe('ResultSubmitForm', () => {
     describe('and the photo type is unsupported', () => {
       it('shows an error', async () => {
         await renderForm();
-        await userEvent.upload(
-          screen.getByLabelText('Photo of the finish clock'),
-          photoFile('application/pdf'),
-          { applyAccept: false },
-        );
+        await userEvent.upload(screen.getByLabelText('Photo of the finish clock'), photoFile('application/pdf'), {
+          applyAccept: false,
+        });
 
         expect(await screen.findByRole('alert')).toHaveTextContent(/JPEG, PNG or WebP/);
       });
@@ -122,10 +118,7 @@ describe('ResultSubmitForm', () => {
     describe('and the photo is over 10 MiB', () => {
       it('shows an error', async () => {
         await renderForm();
-        await userEvent.upload(
-          screen.getByLabelText('Photo of the finish clock'),
-          photoFile('image/png', 10_485_761),
-        );
+        await userEvent.upload(screen.getByLabelText('Photo of the finish clock'), photoFile('image/png', 10_485_761));
 
         expect(await screen.findByRole('alert')).toHaveTextContent(/10 MB/);
       });
@@ -141,10 +134,7 @@ describe('ResultSubmitForm', () => {
         await screen.findByRole('button', { name: 'Submit result' });
         await userEvent.upload(screen.getByLabelText('Photo of the finish clock'), photoFile());
 
-        expect(await screen.findByAltText('Selected finish clock')).toHaveAttribute(
-          'src',
-          'blob:preview',
-        );
+        expect(await screen.findByAltText('Selected finish clock')).toHaveAttribute('src', 'blob:preview');
 
         unmount();
 
@@ -169,10 +159,7 @@ describe('ResultSubmitForm', () => {
         await renderForm();
         await fillTime('1', '2', '5');
         await userEvent.upload(screen.getByLabelText('Photo of the finish clock'), photoFile());
-        await userEvent.type(
-          screen.getByLabelText(/Link to the official result/),
-          'https://results.example/b',
-        );
+        await userEvent.type(screen.getByLabelText(/Link to the official result/), 'https://results.example/b');
         await userEvent.click(screen.getByRole('button', { name: 'Submit result' }));
 
         await waitFor(() => expect(submitResult).toHaveBeenCalledTimes(1));
@@ -183,9 +170,7 @@ describe('ResultSubmitForm', () => {
         expect(input.finishTimeSeconds).toBe(3_725);
         expect(input.proofUrl).toBe('https://results.example/b');
         expect(input.photo?.name).toBe('clock.jpg');
-        expect(
-          await screen.findByText('Result submitted. Staff will review it.'),
-        ).toBeInTheDocument();
+        expect(await screen.findByText('Result submitted. Staff will review it.')).toBeInTheDocument();
       });
     });
   });
@@ -273,9 +258,7 @@ describe('ResultSubmitForm', () => {
       expect(screen.getByLabelText('Hours')).toHaveValue('1');
       expect(screen.getByLabelText('Minutes')).toHaveValue('2');
       expect(screen.getByLabelText('Seconds')).toHaveValue('5');
-      expect(screen.getByLabelText(/Link to the official result/)).toHaveValue(
-        'https://results.example/a',
-      );
+      expect(screen.getByLabelText(/Link to the official result/)).toHaveValue('https://results.example/a');
       expect(screen.getByText(/Awaiting review/)).toBeInTheDocument();
       expect(screen.getByText(/keep your current photo/)).toBeInTheDocument();
     });

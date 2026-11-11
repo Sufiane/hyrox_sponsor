@@ -17,10 +17,7 @@ describe('RaceList', () => {
     it('links each race and shows counts and local date', () => {
       render(RaceList, { races: [RACE], nextCursor: null });
 
-      expect(screen.getByRole('link', { name: /Berlin/ })).toHaveAttribute(
-        'href',
-        '/results/r%201',
-      );
+      expect(screen.getByRole('link', { name: /Berlin/ })).toHaveAttribute('href', '/results/r%201');
       expect(screen.getByText(/3 results, 2 verified/)).toBeInTheDocument();
       expect(screen.getByText(/10 October 2026/)).toBeInTheDocument();
     });
@@ -37,10 +34,7 @@ describe('RaceList', () => {
     it('links to the next page of races', () => {
       render(RaceList, { races: [RACE], nextCursor: 'a b' });
 
-      expect(screen.getByRole('link', { name: 'Next races' })).toHaveAttribute(
-        'href',
-        '/results?cursor=a%20b',
-      );
+      expect(screen.getByRole('link', { name: 'Next races' })).toHaveAttribute('href', '/results?cursor=a%20b');
     });
   });
 

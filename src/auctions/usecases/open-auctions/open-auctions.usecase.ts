@@ -68,7 +68,10 @@ export class OpenAuctionsUsecase {
     }
   }
 
-  private async isRaceEntryVerified(raceEntryId: RaceEntryId, verifiedByRaceEntry: Map<RaceEntryId, boolean>): Promise<boolean> {
+  private async isRaceEntryVerified(
+    raceEntryId: RaceEntryId,
+    verifiedByRaceEntry: Map<RaceEntryId, boolean>,
+  ): Promise<boolean> {
     const known = verifiedByRaceEntry.get(raceEntryId);
 
     if (known !== undefined) {
@@ -92,7 +95,10 @@ export class OpenAuctionsUsecase {
     }
   }
 
-  private async getAthleteFloors(athleteId: AthleteId, floorsByAthlete: Map<AthleteId, FloorsByZone>): Promise<FloorsByZone> {
+  private async getAthleteFloors(
+    athleteId: AthleteId,
+    floorsByAthlete: Map<AthleteId, FloorsByZone>,
+  ): Promise<FloorsByZone> {
     const known = floorsByAthlete.get(athleteId);
 
     if (known !== undefined) {

@@ -27,11 +27,7 @@ export interface FloorPriceApi {
   saveFloorPrice(zone: BodyZone, floorPriceCents: number): Promise<FloorPriceView>;
 }
 
-async function send(
-  options: FloorPriceApiOptions,
-  path: string,
-  init: RequestInit,
-): Promise<unknown> {
+async function send(options: FloorPriceApiOptions, path: string, init: RequestInit): Promise<unknown> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const response = await fetchImpl(`${options.baseUrl}${path}`, init);
 

@@ -33,11 +33,7 @@
 
   {#if data.results != null && data.division != null}
     {@const division = data.division}
-    <DivisionNav
-      divisions={data.race.divisions}
-      current={data.division}
-      hrefFor={divisionHref}
-    />
+    <DivisionNav divisions={data.race.divisions} current={data.division} hrefFor={divisionHref} />
 
     <section class="flex flex-col gap-3" aria-labelledby="division-heading">
       <h2 id="division-heading" class="text-base font-semibold">{heading}</h2>

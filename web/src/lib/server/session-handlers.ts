@@ -62,11 +62,7 @@ export function createSessionHandlers(deps: SessionHandlersDeps): SessionHandler
     maxAgeSeconds: deps.maxAgeSeconds,
   };
 
-  function grantResponse(
-    result: BackendAuthResult<BackendAuthPayload>,
-    jar: CookieJar,
-    okStatus: number,
-  ): Response {
+  function grantResponse(result: BackendAuthResult<BackendAuthPayload>, jar: CookieJar, okStatus: number): Response {
     if (!result.ok) {
       return failure(result.status, result.code);
     }

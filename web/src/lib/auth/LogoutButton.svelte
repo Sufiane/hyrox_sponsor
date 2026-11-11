@@ -23,6 +23,4 @@
   }
 </script>
 
-<button type="button" class={SECONDARY_BUTTON_CLASS} disabled={pending} onclick={handleClick}>
-  Log out
-</button>
+<button type="button" class={SECONDARY_BUTTON_CLASS} disabled={pending} onclick={handleClick}> Log out </button>

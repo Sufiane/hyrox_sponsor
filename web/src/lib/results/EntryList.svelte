@@ -22,10 +22,7 @@
 {#if entries.length === 0}
   <div class="flex max-w-md flex-col gap-2 text-sm text-slate-700">
     <p>You have no race entries yet.</p>
-    <p>
-      Entries are created when you log a race. Logging a race from the website is not available
-      yet.
-    </p>
+    <p>Entries are created when you log a race. Logging a race from the website is not available yet.</p>
   </div>
 {:else}
   <div class="overflow-x-auto">

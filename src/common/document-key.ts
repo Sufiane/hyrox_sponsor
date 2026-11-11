@@ -16,9 +16,6 @@ export function documentKey(value: string): DocumentKey {
   return value as DocumentKey;
 }
 
-export function buildDocumentKey(
-  raceEntryId: RaceEntryId,
-  extension: DocumentExtension,
-): DocumentKey {
+export function buildDocumentKey(raceEntryId: RaceEntryId, extension: DocumentExtension): DocumentKey {
   return documentKey(`race-entries/${raceEntryId}/${randomUUID()}.${extension}`);
 }

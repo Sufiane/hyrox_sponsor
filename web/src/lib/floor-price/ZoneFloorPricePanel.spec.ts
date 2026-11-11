@@ -27,9 +27,7 @@ describe('ZoneFloorPricePanel', () => {
   }
 
   beforeEach(() => {
-    onsave = vi
-      .fn<(zone: BodyZone, floorPriceCents: number) => Promise<void>>()
-      .mockResolvedValue(undefined);
+    onsave = vi.fn<(zone: BodyZone, floorPriceCents: number) => Promise<void>>().mockResolvedValue(undefined);
   });
 
   describe('when no zone is selected', () => {

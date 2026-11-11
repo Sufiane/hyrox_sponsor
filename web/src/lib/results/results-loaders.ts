@@ -56,11 +56,7 @@ export async function loadRaceList(api: ResultsApi, url: URL): Promise<RaceListD
   return { races: list.items, nextCursor: list.nextCursor };
 }
 
-export async function loadRacePage(
-  api: ResultsApi,
-  raceId: string,
-  url: URL,
-): Promise<RacePageData> {
+export async function loadRacePage(api: ResultsApi, raceId: string, url: URL): Promise<RacePageData> {
   const race = unwrap(await api.getRace(raceId));
   const division = pickDivision(url.searchParams.get('division'), race);
   const page = parsePage(url.searchParams.get('page'));

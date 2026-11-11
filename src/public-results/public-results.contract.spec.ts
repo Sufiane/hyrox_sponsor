@@ -75,10 +75,7 @@ describe('public results contract', () => {
     db.listUnverified.mockResolvedValue([{ athleteName: 'Bob Roe', finishTimeSeconds: 3_100 as Seconds }]);
     db.countVerifiedFasterThan.mockResolvedValue(0);
 
-    const body = await controller.listResults(
-      { raceId: race },
-      { division: 'SINGLE_OPEN_MEN', limit: 50, offset: 0 },
-    );
+    const body = await controller.listResults({ raceId: race }, { division: 'SINGLE_OPEN_MEN', limit: 50, offset: 0 });
 
     expect(Object.keys(body).sort()).toEqual(['items', 'total', 'verifiedTotal']);
 

@@ -38,8 +38,6 @@
 
 {#if nextCursor != null}
   <p class="mt-4">
-    <a class="text-sm underline" href={`/results?cursor=${encodeURIComponent(nextCursor)}`}>
-      Next races
-    </a>
+    <a class="text-sm underline" href={`/results?cursor=${encodeURIComponent(nextCursor)}`}> Next races </a>
   </p>
 {/if}

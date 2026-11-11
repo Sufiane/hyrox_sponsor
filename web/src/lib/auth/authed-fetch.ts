@@ -23,11 +23,7 @@ export function createAuthedFetch(options: AuthedFetchOptions): typeof fetch {
     return token;
   }
 
-  function send(
-    input: RequestInfo | URL,
-    init: RequestInit | undefined,
-    token: string,
-  ): Promise<Response> {
+  function send(input: RequestInfo | URL, init: RequestInit | undefined, token: string): Promise<Response> {
     const headers = new Headers(init?.headers);
 
     headers.set('Authorization', `Bearer ${token}`);

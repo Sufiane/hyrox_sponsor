@@ -50,15 +50,13 @@ describe('PlaceBidUsecase', () => {
     ) => work(auction, session)) as never);
     session.upsertBidder.mockResolvedValue('bidder-2' as BidderId);
     session.findLeading.mockResolvedValue(null);
-    session.insertLeading.mockImplementation(
-      async (bidderId, amountCents): Promise<PlacedBid> => ({
-        id: 'bid-2' as BidId,
-        auctionId,
-        bidderId,
-        amountCents,
-        placedAt,
-      }),
-    );
+    session.insertLeading.mockImplementation(async (bidderId, amountCents): Promise<PlacedBid> => ({
+      id: 'bid-2' as BidId,
+      auctionId,
+      bidderId,
+      amountCents,
+      placedAt,
+    }));
     usecase = new PlaceBidUsecase(db);
   });
 

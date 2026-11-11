@@ -19,9 +19,7 @@ class ProbeController {
   }
 }
 
-async function startApp(
-  hops: number,
-): Promise<{ app: NestExpressApplication; baseUrl: string }> {
+async function startApp(hops: number): Promise<{ app: NestExpressApplication; baseUrl: string }> {
   const moduleRef = await Test.createTestingModule({
     imports: [ThrottlerModule.forRoot([{ ttl: WINDOW_MS, limit: GLOBAL_LIMIT }])],
     controllers: [ProbeController],

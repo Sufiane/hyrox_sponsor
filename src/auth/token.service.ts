@@ -23,10 +23,7 @@ export class TokenService {
   }
 
   signAccessToken(athleteId: AthleteId): Promise<string> {
-    return this.jwt.signAsync(
-      { sub: athleteId },
-      { algorithm: 'HS256', expiresIn: this.config.accessTtlSeconds },
-    );
+    return this.jwt.signAsync({ sub: athleteId }, { algorithm: 'HS256', expiresIn: this.config.accessTtlSeconds });
   }
 
   async verifyAccessToken(token: string): Promise<AthleteId> {

@@ -13,10 +13,7 @@
     <h1 class="text-2xl font-semibold text-slate-900">{TOS_TITLE}</h1>
     <p class="text-sm text-slate-700">Version <span class="font-mono">{TOS_VERSION}</span></p>
     {#if TOS_DRAFT_NOTICE != null}
-      <p
-        role="note"
-        class="rounded border border-amber-700 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900"
-      >
+      <p role="note" class="rounded border border-amber-700 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
         {TOS_DRAFT_NOTICE}
       </p>
     {/if}
@@ -38,11 +35,7 @@
 
   <div class="flex flex-col gap-8">
     {#each TOS_SECTIONS as section, index (section.id)}
-      <section
-        id={section.id}
-        aria-labelledby={`${section.id}-heading`}
-        class="flex scroll-mt-6 flex-col gap-2"
-      >
+      <section id={section.id} aria-labelledby={`${section.id}-heading`} class="flex scroll-mt-6 flex-col gap-2">
         <h2 id={`${section.id}-heading`} class="text-lg font-semibold text-slate-900">
           {index + 1}. {section.heading}
         </h2>
@@ -54,9 +47,6 @@
   </div>
 
   <footer class="border-t border-slate-300 pt-6">
-    <a
-      class={`inline-block no-underline ${PRIMARY_BUTTON_CLASS}`}
-      href="/signup">Back to create account</a
-    >
+    <a class={`inline-block no-underline ${PRIMARY_BUTTON_CLASS}`} href="/signup">Back to create account</a>
   </footer>
 </main>

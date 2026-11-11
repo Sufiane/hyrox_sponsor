@@ -212,9 +212,7 @@ describe('RaceEntryService', () => {
 
       it('throws race_entry_not_found and logs', async () => {
         await expect(service.getVerificationStatus(owner, entryId)).rejects.toThrow(NotFoundError);
-        await expect(service.getVerificationStatus(owner, entryId)).rejects.toThrow(
-          'race_entry_not_found',
-        );
+        await expect(service.getVerificationStatus(owner, entryId)).rejects.toThrow('race_entry_not_found');
 
         expect(warn).toHaveBeenCalled();
       });
@@ -226,9 +224,7 @@ describe('RaceEntryService', () => {
       });
 
       it('throws race_entry_not_found', async () => {
-        await expect(service.getVerificationStatus(owner, entryId)).rejects.toThrow(
-          'race_entry_not_found',
-        );
+        await expect(service.getVerificationStatus(owner, entryId)).rejects.toThrow('race_entry_not_found');
       });
     });
 
@@ -323,9 +319,7 @@ describe('RaceEntryService', () => {
 
       it('throws verification_document_not_found', async () => {
         await expect(service.getDocumentAccess(entryId)).rejects.toThrow(NotFoundError);
-        await expect(service.getDocumentAccess(entryId)).rejects.toThrow(
-          'verification_document_not_found',
-        );
+        await expect(service.getDocumentAccess(entryId)).rejects.toThrow('verification_document_not_found');
 
         expect(warn).toHaveBeenCalled();
       });

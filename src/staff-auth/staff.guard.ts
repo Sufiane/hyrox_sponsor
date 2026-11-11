@@ -37,7 +37,7 @@ export class StaffGuard implements CanActivate {
     }
 
     // <= on purpose: iat has second precision, so a token minted in the revocation second must be rejected
-    if (staff.tokensValidAfter != null && issuedAt <=Math.floor(staff.tokensValidAfter.getTime() / 1000)) {
+    if (staff.tokensValidAfter != null && issuedAt <= Math.floor(staff.tokensValidAfter.getTime() / 1000)) {
       this.logger.warn(`Staff request rejected: token for staff ${staffId} is not newer than tokensValidAfter`);
 
       throw new UnauthorizedException('invalid_token');

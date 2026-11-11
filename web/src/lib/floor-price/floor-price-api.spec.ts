@@ -66,9 +66,7 @@ describe('createFloorPriceApi', () => {
 
   describe('when the server rejects with a message code', () => {
     beforeEach(() => {
-      fetchImpl.mockResolvedValue(
-        jsonResponse({ statusCode: 400, message: 'floor_price_below_minimum' }, 400),
-      );
+      fetchImpl.mockResolvedValue(jsonResponse({ statusCode: 400, message: 'floor_price_below_minimum' }, 400));
     });
 
     it('rejects with the status and code', async () => {

@@ -10,11 +10,7 @@ import type { ZoneStates } from '../body-map/body-map-state.ts';
 import type { FloorPriceView } from './floor-price-api.ts';
 
 type KnownErrorCode =
-  | FloorPriceErrorCode
-  | 'cents_invalid'
-  | 'validation_failed'
-  | 'not_authenticated'
-  | 'invalid_amount';
+  FloorPriceErrorCode | 'cents_invalid' | 'validation_failed' | 'not_authenticated' | 'invalid_amount';
 
 const MINIMUM_TEXT = formatCents(PLATFORM_MINIMUM_FLOOR_PRICE_CENTS);
 const MAXIMUM_TEXT = formatCents(MAXIMUM_FLOOR_PRICE_CENTS);

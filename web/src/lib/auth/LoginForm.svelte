@@ -35,9 +35,7 @@
       onsuccess?.();
     } catch (error) {
       serverError =
-        error instanceof AuthApiError
-          ? authErrorMessage(error.code, error.status)
-          : authErrorMessage('request_failed');
+        error instanceof AuthApiError ? authErrorMessage(error.code, error.status) : authErrorMessage('request_failed');
     } finally {
       pending = false;
     }

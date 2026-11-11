@@ -19,8 +19,8 @@
       <p class="text-sm"><a class="underline" href="/account/entries">My race entries</a></p>
       <h1 class="text-lg font-semibold">Your race result</h1>
       <p class="text-sm text-slate-700">
-        Enter your finish time and a photo of the finish clock. Staff review every result. Until
-        then it shows as unverified.
+        Enter your finish time and a photo of the finish clock. Staff review every result. Until then it shows as
+        unverified.
       </p>
     </header>
 

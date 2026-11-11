@@ -62,9 +62,7 @@ export class AuctionService {
     try {
       return await run();
     } catch (error) {
-      this.logger.error(
-        `Auction ${phase} phase failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.logger.error(`Auction ${phase} phase failed: ${error instanceof Error ? error.message : String(error)}`);
 
       return fallback;
     }

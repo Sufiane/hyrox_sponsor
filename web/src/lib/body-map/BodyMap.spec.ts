@@ -47,9 +47,7 @@ describe('BodyMap', () => {
     it('orders the front view regions before the back view regions', () => {
       render(BodyMap, { selected: null, onselect });
 
-      const ids = screen
-        .getAllByRole('button')
-        .map((region) => region.getAttribute('data-region-id'));
+      const ids = screen.getAllByRole('button').map((region) => region.getAttribute('data-region-id'));
 
       expect(ids).toEqual(REGION_IDS);
     });
@@ -69,9 +67,7 @@ describe('BodyMap', () => {
 
       await user.click(regionById(id));
 
-      const zone = BODY_MAP_VIEWS.flatMap((view) => view.regions).find(
-        (region) => region.id === id,
-      )!.zone;
+      const zone = BODY_MAP_VIEWS.flatMap((view) => view.regions).find((region) => region.id === id)!.zone;
 
       expect(onselect).toHaveBeenCalledWith(zone);
     });

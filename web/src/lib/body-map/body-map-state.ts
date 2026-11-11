@@ -30,11 +30,7 @@ export function nextSelection(
   return chosen;
 }
 
-export function regionAccessibleName(
-  zone: BodyZone,
-  viewLabel: string,
-  zoneState: ZoneState | undefined,
-): string {
+export function regionAccessibleName(zone: BodyZone, viewLabel: string, zoneState: ZoneState | undefined): string {
   const base = `${BODY_ZONE_LABELS[zone]}, ${viewLabel.toLowerCase()}`;
 
   if (zoneState?.badge == null || zoneState.badge === '') {

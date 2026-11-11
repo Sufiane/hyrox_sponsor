@@ -221,9 +221,7 @@ describe('AthleteService', () => {
       });
 
       it('throws the email_already_registered code', async () => {
-        await expect(service.register({ ...input, adultAttested: true })).rejects.toThrow(
-          'email_already_registered',
-        );
+        await expect(service.register({ ...input, adultAttested: true })).rejects.toThrow('email_already_registered');
       });
 
       it('does not log the email', async () => {

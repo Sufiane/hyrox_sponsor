@@ -36,25 +36,19 @@ describe('validateSignup', () => {
     it('rejects 9 characters', () => {
       const password = 'a'.repeat(9);
 
-      expect(
-        validateSignup({ ...VALID_SIGNUP, password, confirmPassword: password }),
-      ).toHaveProperty('password');
+      expect(validateSignup({ ...VALID_SIGNUP, password, confirmPassword: password })).toHaveProperty('password');
     });
 
     it('accepts 10 characters', () => {
       const password = 'a'.repeat(10);
 
-      expect(
-        validateSignup({ ...VALID_SIGNUP, password, confirmPassword: password }),
-      ).not.toHaveProperty('password');
+      expect(validateSignup({ ...VALID_SIGNUP, password, confirmPassword: password })).not.toHaveProperty('password');
     });
 
     it('rejects 129 characters', () => {
       const password = 'a'.repeat(129);
 
-      expect(
-        validateSignup({ ...VALID_SIGNUP, password, confirmPassword: password }),
-      ).toHaveProperty('password');
+      expect(validateSignup({ ...VALID_SIGNUP, password, confirmPassword: password })).toHaveProperty('password');
     });
   });
 
@@ -79,9 +73,7 @@ describe('validateSignup', () => {
 
   describe('adult attestation', () => {
     it('is required', () => {
-      expect(validateSignup({ ...VALID_SIGNUP, adultAttested: false })).toHaveProperty(
-        'adultAttested',
-      );
+      expect(validateSignup({ ...VALID_SIGNUP, adultAttested: false })).toHaveProperty('adultAttested');
     });
   });
 
@@ -112,10 +104,7 @@ describe('validateLogin', () => {
 
   describe('when fields are empty', () => {
     it('flags email and password', () => {
-      expect(Object.keys(validateLogin({ email: '', password: '' }))).toEqual([
-        'email',
-        'password',
-      ]);
+      expect(Object.keys(validateLogin({ email: '', password: '' }))).toEqual(['email', 'password']);
     });
   });
 });

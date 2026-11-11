@@ -139,7 +139,9 @@ describe.skipIf(!reachable)('PlaceBidUsecase (postgres)', () => {
       expect(auction.currentLeadingBidId).toBe(leading[0].id);
 
       for (let i = 1; i < bids.length; i++) {
-        expect(bids[i].amountCents).toBeGreaterThanOrEqual(minimumNextBidCents(cents(bids[i - 1].amountCents), cents(1000)));
+        expect(bids[i].amountCents).toBeGreaterThanOrEqual(
+          minimumNextBidCents(cents(bids[i - 1].amountCents), cents(1000)),
+        );
       }
 
       for (const result of results) {

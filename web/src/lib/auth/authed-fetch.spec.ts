@@ -73,9 +73,7 @@ describe('createAuthedFetch', () => {
         token = null;
         refreshImpl.mockResolvedValue(false);
 
-        await expect(authedFetch('http://api.test/x')).rejects.toBeInstanceOf(
-          NotAuthenticatedError,
-        );
+        await expect(authedFetch('http://api.test/x')).rejects.toBeInstanceOf(NotAuthenticatedError);
         expect(fetchImpl).not.toHaveBeenCalled();
       });
     });
@@ -130,9 +128,7 @@ describe('createAuthedFetch', () => {
         fetchImpl.mockResolvedValue(response(401));
         refreshImpl.mockResolvedValue(false);
 
-        await expect(authedFetch('http://api.test/x')).rejects.toBeInstanceOf(
-          NotAuthenticatedError,
-        );
+        await expect(authedFetch('http://api.test/x')).rejects.toBeInstanceOf(NotAuthenticatedError);
         expect(fetchImpl).toHaveBeenCalledTimes(1);
       });
     });
@@ -164,9 +160,7 @@ describe('createAuthedFetch', () => {
 
       expect(second).toBe(first);
       expect(second.get('finishTimeSeconds')).toBe('3725');
-      expect(
-        new Headers((fetchImpl.mock.calls[1][1] as RequestInit).headers).has('Content-Type'),
-      ).toBe(false);
+      expect(new Headers((fetchImpl.mock.calls[1][1] as RequestInit).headers).has('Content-Type')).toBe(false);
     });
   });
 });

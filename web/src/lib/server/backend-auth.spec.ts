@@ -165,16 +165,13 @@ describe('createBackendAuth', () => {
     });
 
     describe('when the client IP is null', () => {
-      it.each(['login', 'signup', 'refresh', 'logout'])(
-        'omits the header on %s',
-        async (method) => {
-          await callWith(method, null);
+      it.each(['login', 'signup', 'refresh', 'logout'])('omits the header on %s', async (method) => {
+        await callWith(method, null);
 
-          expect(fetchImpl.mock.calls[0][1].headers).toEqual({
-            'Content-Type': 'application/json',
-          });
-        },
-      );
+        expect(fetchImpl.mock.calls[0][1].headers).toEqual({
+          'Content-Type': 'application/json',
+        });
+      });
     });
   });
 });

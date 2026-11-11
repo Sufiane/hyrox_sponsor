@@ -54,9 +54,7 @@ describe('PublicResultsDb', () => {
     });
 
     it('maps counts onto the races', async () => {
-      await expect(db.listRaces(21, null)).resolves.toEqual([
-        { ...raceRow, resultCount: 3, verifiedCount: 2 },
-      ]);
+      await expect(db.listRaces(21, null)).resolves.toEqual([{ ...raceRow, resultCount: 3, verifiedCount: 2 }]);
     });
 
     it('selects only public race columns', async () => {

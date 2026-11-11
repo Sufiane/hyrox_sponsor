@@ -58,9 +58,7 @@ describe('createAuthApi', () => {
 
   describe('signup', () => {
     it('sends the attestation', async () => {
-      fetchImpl.mockResolvedValue(
-        jsonResponse({ accessToken: 'a', expiresIn: 900, athlete: ATHLETE }, 201),
-      );
+      fetchImpl.mockResolvedValue(jsonResponse({ accessToken: 'a', expiresIn: 900, athlete: ATHLETE }, 201));
       const input = {
         name: 'A',
         email: 'a@b.co',

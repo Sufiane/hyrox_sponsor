@@ -45,11 +45,7 @@ describe('createSessionHandlers', () => {
         backend.login.mockResolvedValue({ ok: true, value: AUTH_PAYLOAD });
         const jar = createFakeJar();
 
-        const response = await handlers.login(
-          jsonRequest({ email: 'a@b.co', password: 'pw' }),
-          jar,
-          null,
-        );
+        const response = await handlers.login(jsonRequest({ email: 'a@b.co', password: 'pw' }), jar, null);
 
         expect(response.status).toBe(200);
         expect(jar.sets[0]).toMatchObject({ name: 'hyrox_refresh', value: 'secret-refresh' });
@@ -64,11 +60,7 @@ describe('createSessionHandlers', () => {
         backend.login.mockResolvedValue({ ok: false, status: 401, code: 'invalid_credentials' });
         const jar = createFakeJar();
 
-        const response = await handlers.login(
-          jsonRequest({ email: 'a@b.co', password: 'x' }),
-          jar,
-          null,
-        );
+        const response = await handlers.login(jsonRequest({ email: 'a@b.co', password: 'x' }), jar, null);
 
         expect(response.status).toBe(401);
         expect(await response.json()).toEqual({
@@ -105,11 +97,7 @@ describe('createSessionHandlers', () => {
       ['not a string', 7],
     ])('when tosVersion is %s', (_label, tosVersion) => {
       it('answers 400 validation_failed without calling the backend', async () => {
-        const response = await handlers.signup(
-          jsonRequest({ ...SIGNUP_BODY, tosVersion }),
-          createFakeJar(),
-          null,
-        );
+        const response = await handlers.signup(jsonRequest({ ...SIGNUP_BODY, tosVersion }), createFakeJar(), null);
 
         expect(response.status).toBe(400);
         expect(await response.json()).toMatchObject({ message: 'validation_failed' });
@@ -159,11 +147,7 @@ describe('createSessionHandlers', () => {
           code: 'email_already_registered',
         });
 
-        const response = await handlers.signup(
-          jsonRequest(SIGNUP_BODY),
-          createFakeJar(),
-          null,
-        );
+        const response = await handlers.signup(jsonRequest(SIGNUP_BODY), createFakeJar(), null);
 
         expect(response.status).toBe(400);
         expect(await response.json()).toMatchObject({ message: 'email_already_registered' });
@@ -262,11 +246,7 @@ describe('createSessionHandlers', () => {
       it('passes it to the backend on login', async () => {
         backend.login.mockResolvedValue({ ok: false, status: 401, code: 'invalid_credentials' });
 
-        await handlers.login(
-          jsonRequest({ email: 'a@b.co', password: 'pw' }),
-          createFakeJar(),
-          CLIENT_IP,
-        );
+        await handlers.login(jsonRequest({ email: 'a@b.co', password: 'pw' }), createFakeJar(), CLIENT_IP);
 
         expect(backend.login).toHaveBeenCalledWith('a@b.co', 'pw', CLIENT_IP);
       });
@@ -274,11 +254,7 @@ describe('createSessionHandlers', () => {
       it('passes it to the backend on signup', async () => {
         backend.signup.mockResolvedValue({ ok: false, status: 400, code: 'x' });
 
-        await handlers.signup(
-          jsonRequest(SIGNUP_BODY),
-          createFakeJar(),
-          CLIENT_IP,
-        );
+        await handlers.signup(jsonRequest(SIGNUP_BODY), createFakeJar(), CLIENT_IP);
 
         expect(backend.signup).toHaveBeenCalledWith(expect.any(Object), CLIENT_IP);
       });
@@ -300,11 +276,7 @@ describe('createSessionHandlers', () => {
 
     describe('when the login body is malformed', () => {
       it('never calls the backend', async () => {
-        const response = await handlers.login(
-          jsonRequest({ email: 1 }),
-          createFakeJar(),
-          CLIENT_IP,
-        );
+        const response = await handlers.login(jsonRequest({ email: 1 }), createFakeJar(), CLIENT_IP);
 
         expect(response.status).toBe(400);
         expect(backend.login).not.toHaveBeenCalled();

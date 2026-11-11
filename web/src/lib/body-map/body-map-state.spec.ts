@@ -1,9 +1,4 @@
-import {
-  isZoneInteractive,
-  nextSelection,
-  regionAccessibleName,
-  zoneCaption,
-} from './body-map-state.ts';
+import { isZoneInteractive, nextSelection, regionAccessibleName, zoneCaption } from './body-map-state.ts';
 
 describe('isZoneInteractive', () => {
   describe('when the whole map is disabled', () => {
@@ -62,17 +57,13 @@ describe('nextSelection', () => {
 describe('regionAccessibleName', () => {
   describe('when the zone has no badge', () => {
     it('names the zone and the view', () => {
-      expect(regionAccessibleName('LEFT_PEC', 'Front view', undefined)).toBe(
-        'Left pec, front view',
-      );
+      expect(regionAccessibleName('LEFT_PEC', 'Front view', undefined)).toBe('Left pec, front view');
     });
   });
 
   describe('when the zone has a badge', () => {
     it('appends the badge text', () => {
-      expect(regionAccessibleName('ASS', 'Back view', { badge: '$25' })).toBe(
-        'Glutes, back view, $25',
-      );
+      expect(regionAccessibleName('ASS', 'Back view', { badge: '$25' })).toBe('Glutes, back view, $25');
     });
   });
 });

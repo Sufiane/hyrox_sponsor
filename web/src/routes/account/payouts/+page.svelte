@@ -29,9 +29,7 @@
     <header class="flex flex-col gap-1">
       <p class="text-sm"><a class="underline" href="/">Home</a></p>
       <h1 class="text-lg font-semibold">Payouts</h1>
-      <p class="text-sm text-slate-700">
-        Connect a payout account with Stripe so you can be paid for sponsorships.
-      </p>
+      <p class="text-sm text-slate-700">Connect a payout account with Stripe so you can be paid for sponsorships.</p>
     </header>
 
     <PayoutsPanel

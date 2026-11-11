@@ -23,7 +23,9 @@ function due(auctionId: string, raceEntryId: string, athleteId: string, zone: Du
   };
 }
 
-function pricesFor(saved: Partial<Record<DueToOpen['zone'], number>>): ReturnType<ZoneFloorPriceService['listForAthlete']> {
+function pricesFor(
+  saved: Partial<Record<DueToOpen['zone'], number>>,
+): ReturnType<ZoneFloorPriceService['listForAthlete']> {
   return Promise.resolve(
     ZONE_ORDER.map((zone) => ({
       zone,

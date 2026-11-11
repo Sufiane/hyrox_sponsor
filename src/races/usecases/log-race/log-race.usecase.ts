@@ -44,9 +44,7 @@ export class LogRaceUsecase {
     });
 
     if (!entry) {
-      this.logger.warn(
-        `Athlete ${athleteId} already has a race entry on ${raceLocalDate.toISOString().slice(0, 10)}`,
-      );
+      this.logger.warn(`Athlete ${athleteId} already has a race entry on ${raceLocalDate.toISOString().slice(0, 10)}`);
 
       throw new ConflictError('race_entry_date_conflict');
     }

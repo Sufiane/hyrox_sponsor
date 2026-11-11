@@ -161,7 +161,12 @@ describe('PublicResultsService', () => {
     describe('when verified times tie', () => {
       beforeEach(() => {
         db.countByStatus.mockResolvedValue({ verified: 4, pending: 0 });
-        db.listVerified.mockResolvedValue([row('Ann A', 3_000), row('Bob B', 3_100), row('Cy C', 3_100), row('Di D', 3_200)]);
+        db.listVerified.mockResolvedValue([
+          row('Ann A', 3_000),
+          row('Bob B', 3_100),
+          row('Cy C', 3_100),
+          row('Di D', 3_200),
+        ]);
       });
 
       it('uses competition ranking', async () => {

@@ -37,9 +37,7 @@ describe('EntryList', () => {
       });
 
       expect(screen.getByText('Rejected')).toBeInTheDocument();
-      expect(
-        screen.getByRole('link', { name: 'Edit result for Hyrox Berlin' }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Edit result for Hyrox Berlin' })).toBeInTheDocument();
     });
   });
 
@@ -48,9 +46,7 @@ describe('EntryList', () => {
       render(EntryList, { entries: [] });
 
       expect(screen.getByText('You have no race entries yet.')).toBeInTheDocument();
-      expect(
-        screen.getByText(/Logging a race from the website is not available yet/),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Logging a race from the website is not available yet/)).toBeInTheDocument();
     });
   });
 });

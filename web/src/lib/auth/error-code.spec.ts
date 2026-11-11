@@ -13,9 +13,7 @@ describe('errorCode', () => {
 
   describe('when the body is not json', () => {
     it('returns request_failed', async () => {
-      await expect(errorCode(new Response('oops', { status: 500 }))).resolves.toBe(
-        'request_failed',
-      );
+      await expect(errorCode(new Response('oops', { status: 500 }))).resolves.toBe('request_failed');
     });
   });
 

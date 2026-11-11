@@ -20,7 +20,10 @@ describe('ApproveVerificationDto', () => {
 
   describe('when the document key is valid', () => {
     it('exposes the branded key', async () => {
-      const result = (await createValidationPipe().transform({ reviewedDocumentKey: validKey }, metadata)) as ApproveVerificationDto;
+      const result = (await createValidationPipe().transform(
+        { reviewedDocumentKey: validKey },
+        metadata,
+      )) as ApproveVerificationDto;
 
       expect(result.reviewedDocumentKey).toBe(validKey);
     });
