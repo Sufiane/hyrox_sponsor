@@ -25,6 +25,7 @@ function athleteRow(overrides: Partial<AthleteRow> = {}): AthleteRow {
     stripeConnectAccountId: null,
     stripeConnectDetailsSubmitted: false,
     stripeConnectPayoutsEnabled: false,
+    stripeConnectRequirementsDue: null,
     ...overrides,
   } as AthleteRow;
 }
@@ -221,9 +222,41 @@ describe('ConnectService', () => {
       });
 
       it('returns the derived status without calling Stripe', async () => {
-        await expect(service.getStatus(athleteId)).resolves.toBe(expected);
+        await expect(service.getStatus(athleteId)).resolves.toMatchObject({ status: expected });
         expect(gateway.retrieveAccount).not.toHaveBeenCalled();
         expect(gateway.createOnboardingLink).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('when requirements due were never synced', () => {
+      it('returns null requirementsDue', async () => {
+        athletes.findById.mockResolvedValue(athleteRow({ stripeConnectRequirementsDue: null }));
+
+        await expect(service.getStatus(athleteId)).resolves.toEqual({ status: 'NOT_STARTED', requirementsDue: null });
+      });
+    });
+
+    describe('when the stored requirements due are empty', () => {
+      it('returns an empty requirementsDue', async () => {
+        athletes.findById.mockResolvedValue(athleteRow({ stripeConnectRequirementsDue: [] }));
+
+        await expect(service.getStatus(athleteId)).resolves.toEqual({ status: 'NOT_STARTED', requirementsDue: [] });
+      });
+    });
+
+    describe('when requirements are stored', () => {
+      it('returns them from the database', async () => {
+        athletes.findById.mockResolvedValue(
+          athleteRow({
+            stripeConnectAccountId: storedAccount,
+            stripeConnectRequirementsDue: ['external_account', 'individual.verification.document'],
+          }),
+        );
+
+        await expect(service.getStatus(athleteId)).resolves.toEqual({
+          status: 'INCOMPLETE',
+          requirementsDue: ['external_account', 'individual.verification.document'],
+        });
       });
     });
   });
@@ -234,6 +267,7 @@ describe('ConnectService', () => {
       ...snapshot(storedAccount),
       detailsSubmitted: true,
       payoutsEnabled: true,
+      requirementsDue: ['external_account'],
     };
 
     beforeEach(() => {
@@ -276,6 +310,7 @@ describe('ConnectService', () => {
         expect(athletes.updateConnectReadiness).toHaveBeenCalledWith(athleteId, {
           detailsSubmitted: true,
           payoutsEnabled: true,
+          requirementsDue: ['external_account'],
           syncedAt: syncNow,
         });
       });

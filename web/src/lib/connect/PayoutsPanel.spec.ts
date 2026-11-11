@@ -4,7 +4,7 @@ import type { UserEvent } from '@testing-library/user-event';
 import type { Mock } from 'vitest';
 import PayoutsPanel from './PayoutsPanel.svelte';
 import type { ApiResult } from '../results/api-result.ts';
-import type { ConnectApi, ConnectStatus, OnboardingLink } from './connect-api.ts';
+import type { ConnectApi, ConnectStatus, ConnectStatusResponse, OnboardingLink } from './connect-api.ts';
 
 const LINK: OnboardingLink = {
   url: 'https://connect.stripe.test/abc',
@@ -14,8 +14,11 @@ const LINK: OnboardingLink = {
 const POLL_INTERVAL_MS = 2_000;
 const MAX_POLLS = 3;
 
-function statusResult(status: ConnectStatus): ApiResult<{ status: ConnectStatus }> {
-  return { ok: true, value: { status } };
+function statusResult(
+  status: ConnectStatus,
+  requirementsDue: string[] | null = null,
+): ApiResult<ConnectStatusResponse> {
+  return { ok: true, value: { status, requirementsDue } };
 }
 
 describe('PayoutsPanel', () => {
@@ -115,6 +118,67 @@ describe('PayoutsPanel', () => {
 
     it('shows no action button', () => {
       expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('when requirements are due', () => {
+    describe.each(['INCOMPLETE', 'RESTRICTED'] as const)('when the status is %s', (status) => {
+      beforeEach(async () => {
+        fetchConnectStatus.mockResolvedValue(
+          statusResult(status, ['external_account', 'individual.dob.day', 'individual.dob.year']),
+        );
+        await renderPanel();
+      });
+
+      it('lists the friendly labels once each', () => {
+        const items = screen.getAllByRole('listitem').map((item) => item.textContent);
+
+        expect(items).toEqual(['Bank account or debit card', 'Date of birth']);
+      });
+
+      it('shows the heading', () => {
+        expect(screen.getByText('Stripe still needs:')).toBeInTheDocument();
+      });
+
+      it('keeps the live region free of the list', () => {
+        expect(screen.getByRole('status')).not.toHaveTextContent('Date of birth');
+      });
+    });
+
+    describe('when the status is NOT_STARTED', () => {
+      it('shows no list', async () => {
+        fetchConnectStatus.mockResolvedValue(statusResult('NOT_STARTED', ['external_account']));
+        await renderPanel();
+
+        expect(screen.queryByRole('list')).not.toBeInTheDocument();
+      });
+    });
+
+    describe('when the status is READY', () => {
+      it('shows no list', async () => {
+        fetchConnectStatus.mockResolvedValue(statusResult('READY', ['external_account']));
+        await renderPanel();
+
+        expect(screen.queryByRole('list')).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('when requirementsDue is null', () => {
+    it('shows no list', async () => {
+      fetchConnectStatus.mockResolvedValue(statusResult('INCOMPLETE', null));
+      await renderPanel();
+
+      expect(screen.queryByText('Stripe still needs:')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('when requirementsDue is empty', () => {
+    it('shows no list', async () => {
+      fetchConnectStatus.mockResolvedValue(statusResult('INCOMPLETE', []));
+      await renderPanel();
+
+      expect(screen.queryByText('Stripe still needs:')).not.toBeInTheDocument();
     });
   });
 

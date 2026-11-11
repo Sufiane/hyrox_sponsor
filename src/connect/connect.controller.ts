@@ -26,9 +26,7 @@ export class ConnectController {
 
   @Get('status')
   async getStatus(@CurrentAthleteId() currentAthleteId: AthleteId | undefined): Promise<ConnectStatusResponse> {
-    const status = await this.service.getStatus(this.requireAthleteId(currentAthleteId));
-
-    return { status };
+    return this.service.getStatus(this.requireAthleteId(currentAthleteId));
   }
 
   private requireAthleteId(athleteId: AthleteId | undefined): AthleteId {

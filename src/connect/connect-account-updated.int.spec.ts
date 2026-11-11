@@ -20,14 +20,18 @@ describe.skipIf(!reachable)('ConnectService.syncReadiness (postgres)', () => {
   let database: ThrowawayDatabase;
   let prisma: PrismaService;
 
-  function serviceWith(accountId: StripeConnectAccountId, payoutsEnabled: boolean): ConnectService {
+  function serviceWith(
+    accountId: StripeConnectAccountId,
+    payoutsEnabled: boolean,
+    requirementsDue: readonly string[] = [],
+  ): ConnectService {
     const gateway = {
       retrieveAccount: async () => ({
         id: accountId,
         detailsSubmitted: true,
         payoutsEnabled,
         transfersActive: payoutsEnabled,
-        requirementsDue: [],
+        requirementsDue,
         disabledReason: null,
       }),
     } as unknown as StripeGateway;
@@ -57,7 +61,7 @@ describe.skipIf(!reachable)('ConnectService.syncReadiness (postgres)', () => {
     it('leaves the same final readiness row', async () => {
       const accountId = stripeConnectAccountId('acct_int_1');
       const athlete = await createAthlete(prisma, { stripeConnectAccountId: accountId });
-      const service = serviceWith(accountId, true);
+      const service = serviceWith(accountId, true, ['external_account']);
 
       await service.syncReadiness(accountId);
 
@@ -72,6 +76,7 @@ describe.skipIf(!reachable)('ConnectService.syncReadiness (postgres)', () => {
       expect(second.stripeConnectDetailsSubmitted).toBe(true);
       expect(second.stripeConnectPayoutsEnabled).toBe(true);
       expect(second.stripeConnectSyncedAt).not.toBeNull();
+      expect(second.stripeConnectRequirementsDue).toEqual(['external_account']);
     });
   });
 
@@ -86,11 +91,12 @@ describe.skipIf(!reachable)('ConnectService.syncReadiness (postgres)', () => {
         stripeConnectSyncedAt: newer,
       });
 
-      await serviceWith(accountId, false).syncReadiness(accountId);
+      await serviceWith(accountId, false, ['external_account']).syncReadiness(accountId);
 
       const stored = await prisma.athlete.findUniqueOrThrow({ where: { id: athlete.id } });
 
       expect(stored.stripeConnectPayoutsEnabled).toBe(true);
+      expect(stored.stripeConnectRequirementsDue).toBeNull();
       expect(stored.stripeConnectSyncedAt).toEqual(newer);
     });
   });

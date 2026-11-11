@@ -51,9 +51,9 @@ describe('ConnectController', () => {
 
     describe('when the athlete is authenticated', () => {
       it('wraps the status for the token athlete', async () => {
-        service.getStatus.mockResolvedValue('READY');
+        service.getStatus.mockResolvedValue({ status: 'READY', requirementsDue: [] });
 
-        await expect(controller.getStatus(athleteId)).resolves.toEqual({ status: 'READY' });
+        await expect(controller.getStatus(athleteId)).resolves.toEqual({ status: 'READY', requirementsDue: [] });
         expect(service.getStatus).toHaveBeenCalledWith(athleteId);
       });
     });
