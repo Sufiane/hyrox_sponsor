@@ -7,10 +7,7 @@ import { DOCUMENT_KEY_PATTERN, type DocumentKey } from '../../../common/document
 import type { AthleteId, RaceEntryId } from '../../../common/ids';
 import { DocumentStorage } from '../../../storage/document-storage';
 import { SubmitVerificationDocumentUsecase } from './submit-verification-document.usecase';
-import {
-  SubmitVerificationDocumentUsecaseDb,
-  type SubmissionRecord,
-} from './submit-verification-document.usecase.db';
+import { SubmitVerificationDocumentUsecaseDb, type SubmissionRecord } from './submit-verification-document.usecase.db';
 
 const now = new Date('2026-10-03T12:00:00Z');
 const athleteId = 'athlete-1' as AthleteId;

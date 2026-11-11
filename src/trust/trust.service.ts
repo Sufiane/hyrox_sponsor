@@ -3,9 +3,7 @@ import type { AthleteId } from '../common/ids';
 import { StrikeDb } from './strike.db';
 import { TrustScoreEventDb } from './trust-score-event.db';
 
-type TrustScoreEventRecord = Awaited<
-  ReturnType<TrustScoreEventDb['findByAthlete']>
->[number];
+type TrustScoreEventRecord = Awaited<ReturnType<TrustScoreEventDb['findByAthlete']>>[number];
 
 @Injectable()
 export class TrustService {

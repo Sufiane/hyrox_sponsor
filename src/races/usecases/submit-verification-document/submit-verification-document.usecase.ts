@@ -1,20 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  ConflictError,
-  ForbiddenError,
-  InvalidValueError,
-  NotFoundError,
-} from '../../../common/domain-error';
+import { ConflictError, ForbiddenError, InvalidValueError, NotFoundError } from '../../../common/domain-error';
 import { buildDocumentKey, type DocumentKey } from '../../../common/document-key';
 import { detectDocumentType, type DetectedDocument } from '../../../common/document-sniffer';
 import { MAX_DOCUMENT_BYTES } from '../../../common/document-limits';
 import type { AthleteId, RaceEntryId } from '../../../common/ids';
 import { VERIFICATION_STATUS } from '../../../common/verification-status';
 import { DocumentStorage } from '../../../storage/document-storage';
-import {
-  SubmitVerificationDocumentUsecaseDb,
-  type SubmissionRecord,
-} from './submit-verification-document.usecase.db';
+import { SubmitVerificationDocumentUsecaseDb, type SubmissionRecord } from './submit-verification-document.usecase.db';
 
 export type SubmitVerificationDocumentInput = {
   athleteId: AthleteId;

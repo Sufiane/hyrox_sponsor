@@ -53,9 +53,7 @@
       onsuccess?.();
     } catch (error) {
       serverError =
-        error instanceof AuthApiError
-          ? authErrorMessage(error.code, error.status)
-          : authErrorMessage('request_failed');
+        error instanceof AuthApiError ? authErrorMessage(error.code, error.status) : authErrorMessage('request_failed');
     } finally {
       pending = false;
     }
@@ -104,9 +102,7 @@
       autocomplete="new-password"
       bind:value={password}
       aria-invalid={fieldErrors.password != null}
-      aria-describedby={fieldErrors.password != null
-        ? 'signup-password-error'
-        : 'signup-password-hint'}
+      aria-describedby={fieldErrors.password != null ? 'signup-password-error' : 'signup-password-hint'}
     />
     <p id="signup-password-hint" class="text-xs text-slate-700">10 to 128 characters.</p>
     {#if fieldErrors.password != null}

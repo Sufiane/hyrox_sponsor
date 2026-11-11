@@ -117,9 +117,7 @@ describe('SignupForm', () => {
 
       await fill('longenough1', true);
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        'That email is already registered.',
-      );
+      expect(await screen.findByRole('alert')).toHaveTextContent('That email is already registered.');
     });
   });
 });

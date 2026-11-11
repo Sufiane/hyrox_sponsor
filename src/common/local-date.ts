@@ -17,7 +17,5 @@ export function localDateInTimezone(instant: Date, timezone: IanaTimezone): Date
     day: '2-digit',
   }).formatToParts(instant);
 
-  return new Date(
-    Date.UTC(partValue(parts, 'year'), partValue(parts, 'month') - 1, partValue(parts, 'day')),
-  );
+  return new Date(Date.UTC(partValue(parts, 'year'), partValue(parts, 'month') - 1, partValue(parts, 'day')));
 }

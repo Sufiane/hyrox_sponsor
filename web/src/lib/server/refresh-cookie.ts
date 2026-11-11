@@ -27,11 +27,7 @@ export function readRefreshToken(jar: CookieJar): string | null {
   return token == null || token === '' ? null : token;
 }
 
-export function writeRefreshToken(
-  jar: CookieJar,
-  token: string,
-  config: RefreshCookieConfig,
-): void {
+export function writeRefreshToken(jar: CookieJar, token: string, config: RefreshCookieConfig): void {
   jar.set(REFRESH_COOKIE_NAME, token, {
     path: REFRESH_COOKIE_PATH,
     httpOnly: true,

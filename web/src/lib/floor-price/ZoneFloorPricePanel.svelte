@@ -27,9 +27,7 @@
 
   const label = $derived(selected == null ? '' : `${BODY_ZONE_LABELS[selected]} floor price`);
   const savedEntry = $derived(prices.find((price) => price.zone === selected));
-  const savedDollars = $derived(
-    savedEntry == null ? '' : String(savedEntry.floorPriceCents / FLOOR_PRICE_STEP_CENTS),
-  );
+  const savedDollars = $derived(savedEntry == null ? '' : String(savedEntry.floorPriceCents / FLOOR_PRICE_STEP_CENTS));
   const draft = $derived(selected == null ? '' : (drafts[selected] ?? savedDollars));
   const localErrorCode = $derived(draftError(draft));
   const errorCode = $derived(saveErrorCode ?? localErrorCode);

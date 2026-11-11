@@ -73,12 +73,8 @@
 
 {#if unverifiedItems.length > 0}
   <section class="mt-8 flex flex-col gap-2" aria-labelledby="unverified-heading">
-    <h3 id="unverified-heading" class="text-base font-semibold text-slate-900">
-      Unverified results
-    </h3>
-    <p class="text-sm text-slate-700">
-      Self-reported times still waiting for staff review. They are not ranked.
-    </p>
+    <h3 id="unverified-heading" class="text-base font-semibold text-slate-900">Unverified results</h3>
+    <p class="text-sm text-slate-700">Self-reported times still waiting for staff review. They are not ranked.</p>
     <div class="overflow-x-auto">
       <table class="w-full border-collapse text-sm">
         <caption class="sr-only">{caption}: unverified, unranked results</caption>

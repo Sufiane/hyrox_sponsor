@@ -3,9 +3,7 @@ import { BadRequestException, Logger, ValidationPipe, type ValidationError } fro
 const logger = new Logger('Validation');
 
 function describeErrors(errors: ValidationError[]): string {
-  return errors
-    .map((error) => `${error.property}: ${Object.values(error.constraints ?? {}).join(', ')}`)
-    .join('; ');
+  return errors.map((error) => `${error.property}: ${Object.values(error.constraints ?? {}).join(', ')}`).join('; ');
 }
 
 export function createValidationPipe(): ValidationPipe {

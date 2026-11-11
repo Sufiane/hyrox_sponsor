@@ -16,9 +16,6 @@ export function resultProofKey(value: string): ResultProofKey {
   return value as ResultProofKey;
 }
 
-export function buildResultProofKey(
-  raceEntryId: RaceEntryId,
-  extension: ResultProofExtension,
-): ResultProofKey {
+export function buildResultProofKey(raceEntryId: RaceEntryId, extension: ResultProofExtension): ResultProofKey {
   return resultProofKey(`race-results/${raceEntryId}/${randomUUID()}.${extension}`);
 }

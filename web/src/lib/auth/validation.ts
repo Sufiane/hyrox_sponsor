@@ -38,9 +38,7 @@ function passwordError(password: string): string | null {
     return `Password must be at least ${SIGNUP_PASSWORD_MIN} characters.`;
   }
 
-  return password.length > PASSWORD_MAX
-    ? `Password must be ${PASSWORD_MAX} characters or fewer.`
-    : null;
+  return password.length > PASSWORD_MAX ? `Password must be ${PASSWORD_MAX} characters or fewer.` : null;
 }
 
 function collect(entries: [string, string | null][]): FieldErrors {
@@ -67,10 +65,7 @@ export function validateSignup(input: SignupFormInput): FieldErrors {
     ['name', nameError(input.name)],
     ['email', emailError(input.email)],
     ['password', passwordError(input.password)],
-    [
-      'confirmPassword',
-      input.confirmPassword === input.password ? null : 'Passwords do not match.',
-    ],
+    ['confirmPassword', input.confirmPassword === input.password ? null : 'Passwords do not match.'],
     ['adultAttested', input.adultAttested ? null : 'You must confirm you are 18 or older.'],
     ['tosAccepted', input.tosAccepted ? null : 'You must agree to the Terms of Service.'],
   ]);

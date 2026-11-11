@@ -1,11 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { AuctionId } from '../common/ids';
 import { BidDb } from './bid.db';
-import {
-  PlaceBidUsecase,
-  type PlaceBidInput,
-  type PlaceBidResult,
-} from './usecases/place-bid/place-bid.usecase';
+import { PlaceBidUsecase, type PlaceBidInput, type PlaceBidResult } from './usecases/place-bid/place-bid.usecase';
 
 type BidRecord = Awaited<ReturnType<BidDb['findLeadingForAuction']>>;
 

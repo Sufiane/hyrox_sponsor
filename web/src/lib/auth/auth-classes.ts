@@ -1,5 +1,4 @@
-const FOCUS_RING =
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700';
+const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700';
 
 export const INPUT_CLASS = `rounded border border-slate-500 px-2 py-1.5 text-sm text-slate-900 ${FOCUS_RING}`;
 export const LABEL_CLASS = 'text-sm font-medium text-slate-900';

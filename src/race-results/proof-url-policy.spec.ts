@@ -53,9 +53,7 @@ describe('parseProofUrl', () => {
 
   describe('when the explicit default port is given', () => {
     it('accepts it', () => {
-      expect(parseProofUrl('https://results.example.com:443/x', allowed)).toBe(
-        'https://results.example.com:443/x',
-      );
+      expect(parseProofUrl('https://results.example.com:443/x', allowed)).toBe('https://results.example.com:443/x');
     });
   });
 });

@@ -1,10 +1,5 @@
 <script lang="ts">
-  import {
-    ERROR_CLASS,
-    INPUT_CLASS,
-    LABEL_CLASS,
-    PRIMARY_BUTTON_CLASS,
-  } from '../auth/auth-classes.ts';
+  import { ERROR_CLASS, INPUT_CLASS, LABEL_CLASS, PRIMARY_BUTTON_CLASS } from '../auth/auth-classes.ts';
   import { toTotalSeconds } from './finish-time-input.ts';
   import { photoProblem } from './photo-check.ts';
   import { resultErrorMessage } from './result-errors.ts';
@@ -152,14 +147,17 @@
 {:else}
   <div class="flex w-full max-w-md flex-col gap-6">
     {#if current != null}
-      <section aria-label="Current status" class="flex flex-col gap-1 rounded border border-slate-300 p-3 text-sm text-slate-900">
+      <section
+        aria-label="Current status"
+        class="flex flex-col gap-1 rounded border border-slate-300 p-3 text-sm text-slate-900"
+      >
         {#if current.status === 'PENDING'}
           <p><strong>Awaiting review.</strong> Staff have not checked this time yet.</p>
         {:else if current.status === 'VERIFIED'}
           <p><strong>Verified.</strong></p>
           <p class="text-slate-700">
-            Changing the time, photo or link sends this result back to review. It leaves the
-            ranking until staff approve it again.
+            Changing the time, photo or link sends this result back to review. It leaves the ranking until staff approve
+            it again.
           </p>
         {:else}
           <p><strong>Rejected.</strong></p>
@@ -169,9 +167,7 @@
           <p class="text-slate-700">Fix the problem and submit again.</p>
         {/if}
         {#if !current.publicVisible && current.status !== 'REJECTED'}
-          <p class="text-slate-700">
-            Your result will appear publicly once your bib is verified.
-          </p>
+          <p class="text-slate-700">Your result will appear publicly once your bib is verified.</p>
         {/if}
       </section>
     {/if}
@@ -182,15 +178,36 @@
         <div class="flex gap-3">
           <div class="flex w-20 flex-col gap-1">
             <label for="result-hours" class="text-sm text-slate-700">Hours</label>
-            <input id="result-hours" class={TIME_INPUT_CLASS} type="text" inputmode="numeric" autocomplete="off" bind:value={hours} />
+            <input
+              id="result-hours"
+              class={TIME_INPUT_CLASS}
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+              bind:value={hours}
+            />
           </div>
           <div class="flex w-20 flex-col gap-1">
             <label for="result-minutes" class="text-sm text-slate-700">Minutes</label>
-            <input id="result-minutes" class={TIME_INPUT_CLASS} type="text" inputmode="numeric" autocomplete="off" bind:value={minutes} />
+            <input
+              id="result-minutes"
+              class={TIME_INPUT_CLASS}
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+              bind:value={minutes}
+            />
           </div>
           <div class="flex w-20 flex-col gap-1">
             <label for="result-seconds" class="text-sm text-slate-700">Seconds</label>
-            <input id="result-seconds" class={TIME_INPUT_CLASS} type="text" inputmode="numeric" autocomplete="off" bind:value={seconds} />
+            <input
+              id="result-seconds"
+              class={TIME_INPUT_CLASS}
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+              bind:value={seconds}
+            />
           </div>
         </div>
       </fieldset>
@@ -211,13 +228,24 @@
           {#if current != null}Leave empty to keep your current photo.{/if}
         </p>
         {#if photoPreview != null}
-          <img src={photoPreview} alt="Selected finish clock" class="mt-1 max-h-48 w-fit rounded border border-slate-300" />
+          <img
+            src={photoPreview}
+            alt="Selected finish clock"
+            class="mt-1 max-h-48 w-fit rounded border border-slate-300"
+          />
         {/if}
       </div>
 
       <div class="flex flex-col gap-1">
         <label for="result-url" class={LABEL_CLASS}>Link to the official result (optional)</label>
-        <input id="result-url" class={INPUT_CLASS} type="url" autocomplete="off" aria-describedby="result-url-help" bind:value={proofUrl} />
+        <input
+          id="result-url"
+          class={INPUT_CLASS}
+          type="url"
+          autocomplete="off"
+          aria-describedby="result-url-help"
+          bind:value={proofUrl}
+        />
         <p id="result-url-help" class="text-sm text-slate-700">
           Only staff see this link. Leaving it empty removes a saved link.
         </p>

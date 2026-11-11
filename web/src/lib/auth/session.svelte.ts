@@ -104,8 +104,7 @@ export function createSession(deps: SessionDeps): Session {
       return inflight;
     }
 
-    const run =
-      locks == null ? callRefresh() : locks.request(LOCK_NAME, callRefresh).catch(failSoft);
+    const run = locks == null ? callRefresh() : locks.request(LOCK_NAME, callRefresh).catch(failSoft);
 
     inflight = run.finally(() => {
       inflight = null;

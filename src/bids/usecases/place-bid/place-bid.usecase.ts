@@ -4,12 +4,7 @@ import type { NormalizedEmail } from '../../../common/email';
 import type { AuctionId, BidderId, BidId } from '../../../common/ids';
 import type { Cents } from '../../../common/money';
 import { MAX_BID_CENTS, minimumNextBidCents } from '../../bid-increment';
-import {
-  PlaceBidUsecaseDb,
-  type LockedAuction,
-  type PlaceBidSession,
-  type PlacedBid,
-} from './place-bid.usecase.db';
+import { PlaceBidUsecaseDb, type LockedAuction, type PlaceBidSession, type PlacedBid } from './place-bid.usecase.db';
 
 export type PlaceBidInput = { auctionId: AuctionId; email: NormalizedEmail; amountCents: Cents };
 
@@ -43,11 +38,7 @@ export class PlaceBidUsecase {
     return result;
   }
 
-  private async place(
-    input: PlaceBidInput,
-    auction: LockedAuction,
-    session: PlaceBidSession,
-  ): Promise<PlaceBidResult> {
+  private async place(input: PlaceBidInput, auction: LockedAuction, session: PlaceBidSession): Promise<PlaceBidResult> {
     this.assertOpen(input.auctionId, auction);
 
     if (input.email === auction.athleteEmail) {
@@ -85,7 +76,9 @@ export class PlaceBidUsecase {
     return {
       bid,
       closeAt: auction.closeAt,
-      previousLeader: leading ? { bidId: leading.id, bidderId: leading.bidderId, amountCents: leading.amountCents } : null,
+      previousLeader: leading
+        ? { bidId: leading.id, bidderId: leading.bidderId, amountCents: leading.amountCents }
+        : null,
     };
   }
 

@@ -24,16 +24,12 @@ describe('terms page', () => {
     });
 
     it('shows the title as the main heading', () => {
-      expect(
-        screen.getByRole('heading', { level: 1, name: 'Terms of Service' }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1, name: 'Terms of Service' })).toBeInTheDocument();
     });
 
     it('shows an h2 for every section', () => {
       for (const section of TOS_SECTIONS) {
-        expect(
-          screen.getByRole('heading', { level: 2, name: new RegExp(section.heading) }),
-        ).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 2, name: new RegExp(section.heading) })).toBeInTheDocument();
       }
     });
 
@@ -42,10 +38,7 @@ describe('terms page', () => {
     });
 
     it('links back to signup', () => {
-      expect(screen.getByRole('link', { name: 'Back to create account' })).toHaveAttribute(
-        'href',
-        '/signup',
-      );
+      expect(screen.getByRole('link', { name: 'Back to create account' })).toHaveAttribute('href', '/signup');
     });
 
     it('links the contents to each section', () => {

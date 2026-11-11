@@ -6,8 +6,7 @@ export interface TosSection {
 
 export const TOS_TITLE = 'Terms of Service';
 
-export const TOS_DRAFT_NOTICE: string | null =
-  'DRAFT - not legal advice. Placeholder terms pending review.';
+export const TOS_DRAFT_NOTICE: string | null = 'DRAFT - not legal advice. Placeholder terms pending review.';
 
 export const TOS_SECTIONS: TosSection[] = [
   {

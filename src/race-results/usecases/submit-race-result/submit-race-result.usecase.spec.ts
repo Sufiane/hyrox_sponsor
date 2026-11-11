@@ -169,11 +169,7 @@ describe('SubmitRaceResultUsecase', () => {
     it('stores the photo and creates the row with the allowed link', async () => {
       const result = await run({ proofUrl: ' https://results.example.com/a ' });
 
-      expect(storage.put).toHaveBeenCalledWith(
-        expect.stringMatching(RESULT_PROOF_KEY_PATTERN),
-        jpeg,
-        'image/jpeg',
-      );
+      expect(storage.put).toHaveBeenCalledWith(expect.stringMatching(RESULT_PROOF_KEY_PATTERN), jpeg, 'image/jpeg');
       expect(db.createResult).toHaveBeenCalledWith({
         raceEntryId,
         finishTimeSeconds: 4_000,
@@ -202,26 +198,29 @@ describe('SubmitRaceResultUsecase', () => {
     });
   });
 
-  describe.each(['PENDING', 'VERIFIED', 'REJECTED'] as const)('when a %s result is edited with a new photo', (status) => {
-    beforeEach(() => {
-      db.findForSubmission.mockResolvedValue(withExisting(status));
-    });
-
-    it('resets the row to pending and deletes the old photo', async () => {
-      await expect(run()).resolves.toEqual({ status: 'PENDING', submittedAt: now, publicVisible: true });
-
-      expect(db.updateResult).toHaveBeenCalledWith({
-        id: 'result-1',
-        expectedSubmittedAt: oldSubmittedAt,
-        finishTimeSeconds: 4_000,
-        proofPhotoKey: expect.stringMatching(RESULT_PROOF_KEY_PATTERN),
-        proofUrl: null,
-        at: now,
+  describe.each(['PENDING', 'VERIFIED', 'REJECTED'] as const)(
+    'when a %s result is edited with a new photo',
+    (status) => {
+      beforeEach(() => {
+        db.findForSubmission.mockResolvedValue(withExisting(status));
       });
-      expect(db.createResult).not.toHaveBeenCalled();
-      expect(storage.delete).toHaveBeenCalledWith(oldKey);
-    });
-  });
+
+      it('resets the row to pending and deletes the old photo', async () => {
+        await expect(run()).resolves.toEqual({ status: 'PENDING', submittedAt: now, publicVisible: true });
+
+        expect(db.updateResult).toHaveBeenCalledWith({
+          id: 'result-1',
+          expectedSubmittedAt: oldSubmittedAt,
+          finishTimeSeconds: 4_000,
+          proofPhotoKey: expect.stringMatching(RESULT_PROOF_KEY_PATTERN),
+          proofUrl: null,
+          at: now,
+        });
+        expect(db.createResult).not.toHaveBeenCalled();
+        expect(storage.delete).toHaveBeenCalledWith(oldKey);
+      });
+    },
+  );
 
   describe('when the existing result is VERIFIED', () => {
     beforeEach(() => {

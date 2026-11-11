@@ -66,12 +66,7 @@ export class PublicResultsService {
     return { ...race, divisions };
   }
 
-  async listResults(
-    id: RaceId,
-    division: RaceDivisionCode,
-    limit: number,
-    offset: number,
-  ): Promise<PublicResultPage> {
+  async listResults(id: RaceId, division: RaceDivisionCode, limit: number, offset: number): Promise<PublicResultPage> {
     await this.requireRace(id);
 
     const { verified, pending } = await this.db.countByStatus(id, division);

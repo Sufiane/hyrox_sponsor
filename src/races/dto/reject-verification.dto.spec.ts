@@ -42,15 +42,17 @@ describe('RejectVerificationDto', () => {
   });
 
   describe('when the reason is invalid', () => {
-    it.each([['blank', '   '], ['501 characters', 'a'.repeat(501)], ['a number', 5], ['missing', undefined]])(
-      'rejects with validation_failed for %s',
-      async (_name, reason) => {
-        const result = createValidationPipe().transform({ reviewedDocumentKey: validKey, reason }, metadata);
+    it.each([
+      ['blank', '   '],
+      ['501 characters', 'a'.repeat(501)],
+      ['a number', 5],
+      ['missing', undefined],
+    ])('rejects with validation_failed for %s', async (_name, reason) => {
+      const result = createValidationPipe().transform({ reviewedDocumentKey: validKey, reason }, metadata);
 
-        await expect(result).rejects.toThrow(BadRequestException);
-        await expect(result).rejects.toThrow('validation_failed');
-      },
-    );
+      await expect(result).rejects.toThrow(BadRequestException);
+      await expect(result).rejects.toThrow('validation_failed');
+    });
   });
 
   describe('when the document key is malformed', () => {

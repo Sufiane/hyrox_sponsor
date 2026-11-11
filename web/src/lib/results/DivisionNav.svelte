@@ -18,9 +18,7 @@
       <li>
         <a
           class={`inline-flex items-baseline gap-1.5 rounded border px-3 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 ${
-            active
-              ? 'border-slate-900 bg-slate-900 text-white'
-              : 'border-slate-500 text-slate-900 hover:bg-slate-50'
+            active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-500 text-slate-900 hover:bg-slate-50'
           }`}
           href={hrefFor(entry.division)}
           aria-current={active ? 'page' : undefined}

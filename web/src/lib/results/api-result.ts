@@ -9,11 +9,7 @@ export const REQUEST_FAILED: ApiResult<never> = {
   code: 'request_failed',
 };
 
-export async function sendJson<T>(
-  fetchImpl: typeof fetch,
-  url: string,
-  init: RequestInit,
-): Promise<ApiResult<T>> {
+export async function sendJson<T>(fetchImpl: typeof fetch, url: string, init: RequestInit): Promise<ApiResult<T>> {
   let response: Response;
 
   try {

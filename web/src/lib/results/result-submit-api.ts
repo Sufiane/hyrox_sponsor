@@ -9,10 +9,7 @@ export interface SubmitResultInput {
 }
 
 export interface ResultSubmitApi {
-  submitResult(
-    raceEntryId: string,
-    input: SubmitResultInput,
-  ): Promise<ApiResult<SubmitResultResponse>>;
+  submitResult(raceEntryId: string, input: SubmitResultInput): Promise<ApiResult<SubmitResultResponse>>;
   getOwnResult(raceEntryId: string): Promise<ApiResult<OwnResult>>;
   listOwnEntries(): Promise<ApiResult<{ items: OwnEntry[] }>>;
 }

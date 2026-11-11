@@ -52,9 +52,7 @@ describe('createResultSubmitApi', () => {
 
     describe('when the backend rejects the submission', () => {
       it('returns the error code', async () => {
-        authedFetch.mockResolvedValue(
-          new Response(JSON.stringify({ message: 'race_not_finished' }), { status: 409 }),
-        );
+        authedFetch.mockResolvedValue(new Response(JSON.stringify({ message: 'race_not_finished' }), { status: 409 }));
 
         expect(await api().submitResult('e1', { finishTimeSeconds: 3_000, photo })).toEqual({
           ok: false,

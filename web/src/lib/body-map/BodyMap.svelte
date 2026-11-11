@@ -2,12 +2,7 @@
   import { BODY_MAP_VIEWS } from '@hyrox-sponsor/shared/body-map-geometry';
   import { BODY_ZONE_LABELS } from '@hyrox-sponsor/shared/body-zone-labels';
   import type { BodyZone } from '@hyrox-sponsor/shared/body-zone';
-  import {
-    isZoneInteractive,
-    nextSelection,
-    regionAccessibleName,
-    zoneCaption,
-  } from './body-map-state.ts';
+  import { isZoneInteractive, nextSelection, regionAccessibleName, zoneCaption } from './body-map-state.ts';
   import type { ZoneStates } from './body-map-state.ts';
 
   interface Props {
@@ -17,12 +12,7 @@
     onselect?: (zone: BodyZone) => void;
   }
 
-  let {
-    selected = $bindable(null),
-    zoneStates = {},
-    disabled = false,
-    onselect,
-  }: Props = $props();
+  let { selected = $bindable(null), zoneStates = {}, disabled = false, onselect }: Props = $props();
 
   let hoveredZone = $state<BodyZone | null>(null);
   let focusedZone = $state<BodyZone | null>(null);
@@ -109,7 +99,9 @@
   <p
     class="min-h-8 rounded-full bg-blue-700 px-4 py-1 text-sm font-medium text-white empty:hidden"
     data-testid="selected-chip"
-  >{selectedLabel}</p>
+  >
+    {selectedLabel}
+  </p>
   {#if selected == null}
     <p class="text-sm text-slate-700">Select a body zone</p>
   {/if}

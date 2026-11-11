@@ -18,22 +18,14 @@ describe('DivisionNav', () => {
   it('links each division with its label and count', () => {
     renderNav('SINGLE_OPEN_MEN');
 
-    expect(screen.getByRole('link', { name: /Relay Mixed/ })).toHaveAttribute(
-      'href',
-      '?division=RELAY_MIXED',
-    );
+    expect(screen.getByRole('link', { name: /Relay Mixed/ })).toHaveAttribute('href', '?division=RELAY_MIXED');
     expect(screen.getByRole('link', { name: 'Singles Open Men 3' })).toBeInTheDocument();
   });
 
   it('marks only the current division', () => {
     renderNav('RELAY_MIXED');
 
-    expect(screen.getByRole('link', { name: /Relay Mixed/ })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
-    expect(screen.getByRole('link', { name: /Singles Open Men/ })).not.toHaveAttribute(
-      'aria-current',
-    );
+    expect(screen.getByRole('link', { name: /Relay Mixed/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: /Singles Open Men/ })).not.toHaveAttribute('aria-current');
   });
 });

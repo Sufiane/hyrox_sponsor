@@ -84,14 +84,8 @@ describe('Leaderboard', () => {
     it('links previous and next around a middle page', () => {
       renderBoard([VERIFIED], { total: 120, page: 2 });
 
-      expect(screen.getByRole('link', { name: 'Previous page' })).toHaveAttribute(
-        'href',
-        '?division=X&page=1',
-      );
-      expect(screen.getByRole('link', { name: 'Next page' })).toHaveAttribute(
-        'href',
-        '?division=X&page=3',
-      );
+      expect(screen.getByRole('link', { name: 'Previous page' })).toHaveAttribute('href', '?division=X&page=1');
+      expect(screen.getByRole('link', { name: 'Next page' })).toHaveAttribute('href', '?division=X&page=3');
       expect(screen.getByText('Page 2 of 3')).toBeInTheDocument();
     });
 

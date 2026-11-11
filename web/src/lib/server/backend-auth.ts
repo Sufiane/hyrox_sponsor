@@ -11,23 +11,12 @@ export interface BackendAuthPayload extends BackendTokenPayload {
   athlete: SessionAthlete;
 }
 
-export type BackendAuthResult<T> =
-  { ok: true; value: T } | { ok: false; status: number; code: string };
+export type BackendAuthResult<T> = { ok: true; value: T } | { ok: false; status: number; code: string };
 
 export interface BackendAuth {
-  login(
-    email: string,
-    password: string,
-    clientIp: string | null,
-  ): Promise<BackendAuthResult<BackendAuthPayload>>;
-  signup(
-    input: SignupInput,
-    clientIp: string | null,
-  ): Promise<BackendAuthResult<BackendAuthPayload>>;
-  refresh(
-    refreshToken: string,
-    clientIp: string | null,
-  ): Promise<BackendAuthResult<BackendTokenPayload>>;
+  login(email: string, password: string, clientIp: string | null): Promise<BackendAuthResult<BackendAuthPayload>>;
+  signup(input: SignupInput, clientIp: string | null): Promise<BackendAuthResult<BackendAuthPayload>>;
+  refresh(refreshToken: string, clientIp: string | null): Promise<BackendAuthResult<BackendTokenPayload>>;
   logout(refreshToken: string, clientIp: string | null): Promise<void>;
 }
 
@@ -68,11 +57,9 @@ async function post<T>(
 
 export function createBackendAuth(deps: BackendAuthDeps): BackendAuth {
   return {
-    login: (email, password, clientIp) =>
-      post(deps, '/auth/login', { email, password }, 200, clientIp),
+    login: (email, password, clientIp) => post(deps, '/auth/login', { email, password }, 200, clientIp),
     signup: (input, clientIp) => post(deps, '/auth/signup', input, 201, clientIp),
-    refresh: (refreshToken, clientIp) =>
-      post(deps, '/auth/refresh', { refreshToken }, 200, clientIp),
+    refresh: (refreshToken, clientIp) => post(deps, '/auth/refresh', { refreshToken }, 200, clientIp),
 
     async logout(refreshToken: string, clientIp: string | null): Promise<void> {
       await post(deps, '/auth/logout', { refreshToken }, 204, clientIp);

@@ -3,9 +3,7 @@ import { formatRaceDate } from './format-race-date.ts';
 describe('formatRaceDate', () => {
   describe('when the race is late evening in its own timezone', () => {
     it('shows the local calendar day', () => {
-      expect(formatRaceDate('2026-10-11T21:30:00.000Z', 'America/Los_Angeles')).toBe(
-        '11 October 2026',
-      );
+      expect(formatRaceDate('2026-10-11T21:30:00.000Z', 'America/Los_Angeles')).toBe('11 October 2026');
     });
   });
 

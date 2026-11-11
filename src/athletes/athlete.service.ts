@@ -45,9 +45,7 @@ export class AthleteService {
     }
 
     if (tosVersion !== CURRENT_TOS_VERSION) {
-      this.logger.warn(
-        `Signup rejected: ToS version ${tosVersion} is not current ${CURRENT_TOS_VERSION}`,
-      );
+      this.logger.warn(`Signup rejected: ToS version ${tosVersion} is not current ${CURRENT_TOS_VERSION}`);
 
       throw new BadRequestException('tos_version_mismatch');
     }

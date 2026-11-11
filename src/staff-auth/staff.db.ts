@@ -50,11 +50,7 @@ export class StaffDb {
     return this.updateAndRevoke(id, { isActive: false, tokensValidAfter: at }, at);
   }
 
-  private async updateAndRevoke(
-    id: StaffId,
-    data: Prisma.StaffMemberUpdateInput,
-    at: Date,
-  ): Promise<StaffRow | null> {
+  private async updateAndRevoke(id: StaffId, data: Prisma.StaffMemberUpdateInput, at: Date): Promise<StaffRow | null> {
     try {
       const row = await this.prisma.$transaction(async (tx) => {
         const updated = await tx.staffMember.update({ where: { id }, data });

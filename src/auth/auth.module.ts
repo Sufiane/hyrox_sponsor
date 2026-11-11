@@ -22,14 +22,7 @@ import { TokenService } from './token.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [
-    AuthConfig,
-    AuthService,
-    TokenService,
-    PasswordHasher,
-    RefreshTokenDb,
-    JwtAuthGuard,
-  ],
+  providers: [AuthConfig, AuthService, TokenService, PasswordHasher, RefreshTokenDb, JwtAuthGuard],
   exports: [JwtAuthGuard, TokenService, PasswordHasher],
 })
 export class AuthModule {}

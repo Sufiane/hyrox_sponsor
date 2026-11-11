@@ -42,9 +42,7 @@ describe('OpenAuctionsUsecaseDb', () => {
     it('omits the cursor on the first page', async () => {
       await db.findDue(now, null, 100);
 
-      expect(prisma.auction.findMany).toHaveBeenCalledWith(
-        expect.not.objectContaining({ cursor: expect.anything() }),
-      );
+      expect(prisma.auction.findMany).toHaveBeenCalledWith(expect.not.objectContaining({ cursor: expect.anything() }));
     });
 
     it('starts after the cursor when given one', async () => {

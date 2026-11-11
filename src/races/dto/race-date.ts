@@ -1,7 +1,6 @@
 import { ValidateBy } from 'class-validator';
 
-const ISO_WITH_OFFSET =
-  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/;
+const ISO_WITH_OFFSET = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/;
 const MIN_RACE_DATE = new Date('2017-01-01T00:00:00Z');
 const MAX_YEARS_AHEAD = 2;
 

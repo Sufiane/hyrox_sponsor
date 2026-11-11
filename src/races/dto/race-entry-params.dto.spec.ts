@@ -19,7 +19,10 @@ describe('RaceEntryParamsDto', () => {
 
   describe('when the race entry id is valid', () => {
     it('exposes the trimmed branded id', async () => {
-      const result = (await createValidationPipe().transform({ raceEntryId: ' entry_1 ' }, metadata)) as RaceEntryParamsDto;
+      const result = (await createValidationPipe().transform(
+        { raceEntryId: ' entry_1 ' },
+        metadata,
+      )) as RaceEntryParamsDto;
 
       expect(result.raceEntryId).toBe('entry_1');
     });

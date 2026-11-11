@@ -7,11 +7,7 @@ import type { ResultProofKey } from '../common/result-proof-key';
 import type { Seconds } from '../common/seconds';
 import { DocumentStorage } from '../storage/document-storage';
 import { RaceResultDb, type OwnResultRecord, type StaffResultRecord } from './race-result.db';
-import {
-  AWAITING_REVIEW_LIMIT,
-  OWN_ENTRIES_LIMIT,
-  RaceResultService,
-} from './race-result.service';
+import { AWAITING_REVIEW_LIMIT, OWN_ENTRIES_LIMIT, RaceResultService } from './race-result.service';
 import { ReviewRaceResultUsecase } from './usecases/review-race-result/review-race-result.usecase';
 import { SubmitRaceResultUsecase } from './usecases/submit-race-result/submit-race-result.usecase';
 
