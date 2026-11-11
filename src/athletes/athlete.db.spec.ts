@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { AthleteDb } from './athlete.db';
+import type { NormalizedEmail } from '../common/email';
 import type { AthleteId } from '../common/ids';
 import { stripeConnectAccountId } from '../common/stripe-ids';
 import type { PrismaService } from '../prisma/prisma.service';
@@ -9,10 +10,53 @@ function prismaError(code: string): Prisma.PrismaClientKnownRequestError {
   return new Prisma.PrismaClientKnownRequestError('failure', { code, clientVersion: 'test' });
 }
 
+describe('AthleteDb requirements due parsing', () => {
+  const id = 'athlete-1' as AthleteId;
+  let prisma: DeepMockProxy<PrismaService>;
+  let db: AthleteDb;
+
+  beforeEach(() => {
+    prisma = mockDeep<PrismaService>();
+    db = new AthleteDb(prisma);
+  });
+
+  describe.each([
+    ['an object', {}],
+    ['a string', 'x'],
+    ['an array of numbers', [1, 2]],
+  ])('when the stored requirements due is %s', (_label, stored) => {
+    beforeEach(() => {
+      prisma.athlete.findUnique.mockResolvedValue({ id, stripeConnectRequirementsDue: stored } as never);
+    });
+
+    it('reads it as null from findById', async () => {
+      expect((await db.findById(id))?.stripeConnectRequirementsDue).toBeNull();
+    });
+
+    it('reads it as null from findByEmail', async () => {
+      expect((await db.findByEmail('a@b.co' as NormalizedEmail))?.stripeConnectRequirementsDue).toBeNull();
+    });
+
+    it('reads it as null from findByStripeConnectAccountId', async () => {
+      expect(
+        (await db.findByStripeConnectAccountId(stripeConnectAccountId('acct_1')))?.stripeConnectRequirementsDue,
+      ).toBeNull();
+    });
+  });
+
+  describe('when the stored requirements due is an array of strings', () => {
+    it('returns it', async () => {
+      prisma.athlete.findUnique.mockResolvedValue({ id, stripeConnectRequirementsDue: ['external_account'] } as never);
+
+      expect((await db.findById(id))?.stripeConnectRequirementsDue).toEqual(['external_account']);
+    });
+  });
+});
+
 describe('AthleteDb connect readiness', () => {
   const id = 'athlete-1' as AthleteId;
   const accountId = stripeConnectAccountId('acct_1');
-  const row = { id, stripeConnectAccountId: accountId };
+  const row = { id, stripeConnectAccountId: accountId, stripeConnectRequirementsDue: null };
   let prisma: DeepMockProxy<PrismaService>;
   let db: AthleteDb;
 
@@ -27,7 +71,7 @@ describe('AthleteDb connect readiness', () => {
         prisma.athlete.updateMany.mockResolvedValue({ count: 1 });
         prisma.athlete.findUnique.mockResolvedValue(row as never);
 
-        expect(await db.setStripeConnectAccountIdIfUnset(id, accountId)).toBe(row);
+        expect(await db.setStripeConnectAccountIdIfUnset(id, accountId)).toEqual(row);
         expect(prisma.athlete.updateMany).toHaveBeenCalledWith({
           where: { id, stripeConnectAccountId: null },
           data: { stripeConnectAccountId: accountId },
@@ -57,7 +101,7 @@ describe('AthleteDb connect readiness', () => {
     it('queries by account id', async () => {
       prisma.athlete.findUnique.mockResolvedValue(row as never);
 
-      expect(await db.findByStripeConnectAccountId(accountId)).toBe(row);
+      expect(await db.findByStripeConnectAccountId(accountId)).toEqual(row);
       expect(prisma.athlete.findUnique).toHaveBeenCalledWith({ where: { stripeConnectAccountId: accountId } });
     });
 
@@ -72,7 +116,12 @@ describe('AthleteDb connect readiness', () => {
 
   describe('updateConnectReadiness', () => {
     const syncedAt = new Date('2026-11-02T10:00:00Z');
-    const readiness = { detailsSubmitted: true, payoutsEnabled: false, syncedAt };
+    const readiness = {
+      detailsSubmitted: true,
+      payoutsEnabled: false,
+      requirementsDue: ['external_account'],
+      syncedAt,
+    };
 
     it('writes only when the stored sync time is null or older', async () => {
       prisma.athlete.updateMany.mockResolvedValue({ count: 1 });
@@ -84,6 +133,7 @@ describe('AthleteDb connect readiness', () => {
         data: {
           stripeConnectDetailsSubmitted: true,
           stripeConnectPayoutsEnabled: false,
+          stripeConnectRequirementsDue: ['external_account'],
           stripeConnectSyncedAt: syncedAt,
         },
       });

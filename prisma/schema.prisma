@@ -37,6 +37,7 @@ model Athlete {
   stripeConnectAccountId        String?   @unique @map("stripe_connect_account_id")
   stripeConnectDetailsSubmitted Boolean   @default(false) @map("stripe_connect_details_submitted")
   stripeConnectPayoutsEnabled   Boolean   @default(false) @map("stripe_connect_payouts_enabled")
+  stripeConnectRequirementsDue  Json?     @map("stripe_connect_requirements_due")
   stripeConnectSyncedAt         DateTime? @map("stripe_connect_synced_at") @db.Timestamptz(3)
   createdAt                     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)

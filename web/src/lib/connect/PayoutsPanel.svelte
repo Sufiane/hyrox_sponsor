@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { connectErrorMessage } from './connect-errors.ts';
+  import { requirementLabels } from './requirement-labels.ts';
   import type { ConnectApi, ConnectStatus } from './connect-api.ts';
 
   interface Props {
@@ -37,11 +38,17 @@
   }: Props = $props();
 
   let status = $state<ConnectStatus | null>(null);
+  let requirementsDue = $state<string[] | null>(null);
   let errorMessage = $state<string | null>(null);
   let requesting = $state(false);
   let confirming = $state(false);
   let stillPending = $state(false);
 
+  const dueLabels = $derived(
+    (status === 'INCOMPLETE' || status === 'RESTRICTED') && requirementsDue != null
+      ? requirementLabels(requirementsDue)
+      : [],
+  );
   const busy = $derived(requesting || confirming);
 
   let destroyed = false;
@@ -81,6 +88,7 @@
     }
 
     status = result.value.status;
+    requirementsDue = result.value.requirementsDue;
     errorMessage = null;
 
     return true;
@@ -195,6 +203,17 @@
       You can receive payouts.
     {/if}
   </p>
+
+  {#if dueLabels.length > 0}
+    <div class="text-sm text-slate-700">
+      <p id="requirements-heading" class="font-medium">Stripe still needs:</p>
+      <ul class="mt-1 list-disc pl-5" aria-labelledby="requirements-heading">
+        {#each dueLabels as label (label)}
+          <li>{label}</li>
+        {/each}
+      </ul>
+    </div>
+  {/if}
 
   {#if errorMessage != null}
     <p role="alert" class="text-sm text-red-700">{errorMessage}</p>

@@ -209,7 +209,7 @@ Athlete-only routes (JWT). The Stripe account is created lazily on the first lin
 | Route | Success | Notes |
 |---|---|---|
 | `POST /athletes/me/connect/onboarding-link` | 201 `{ url, expiresAt }` | 5/min; `READY` athletes still get a link; errors `athlete_not_found` (404), `athlete_banned` (403), `athlete_not_adult` (403), `connect_account_conflict` (409), `stripe_unavailable` (502) |
-| `GET /athletes/me/connect/status` | 200 `{ status }` | `NOT_STARTED`, `INCOMPLETE`, `RESTRICTED` or `READY`; reads the database only, never calls Stripe; `athlete_not_found` (404) |
+| `GET /athletes/me/connect/status` | 200 `{ status, requirementsDue }` | `status` is `NOT_STARTED`, `INCOMPLETE`, `RESTRICTED` or `READY`; `requirementsDue` is `string[] \| null` (Stripe requirement keys from the last `account.updated` sync; `null` = never synced, `[]` = nothing due); reads the database only, never calls Stripe; `athlete_not_found` (404) |
 
 ### Stripe events handled (HYR-49)
 
@@ -217,7 +217,7 @@ Handlers register themselves in `StripeEventHandlerRegistry` (exported by `Strip
 
 | Event | Channel | Handler | Effect |
 |---|---|---|---|
-| `account.updated` | Connect | `ConnectAccountUpdatedHandler` | Looks up the athlete by `event.account`, retrieves the account from Stripe, and stores `stripeConnectDetailsSubmitted`, `stripeConnectPayoutsEnabled` and `stripeConnectSyncedAt`. Unknown account: warn and 200. Retrieve failure: 500, claim released, Stripe retries. Writes only when the stored sync time is null or older than the time this delivery started, so concurrent or out-of-order deliveries cannot overwrite newer state. |
+| `account.updated` | Connect | `ConnectAccountUpdatedHandler` | Looks up the athlete by `event.account`, retrieves the account from Stripe, and stores `stripeConnectDetailsSubmitted`, `stripeConnectPayoutsEnabled`, `stripeConnectRequirementsDue` and `stripeConnectSyncedAt`. Unknown account: warn and 200. Retrieve failure: 500, claim released, Stripe retries. Writes only when the stored sync time is null or older than the time this delivery started, so concurrent or out-of-order deliveries cannot overwrite newer state. |
 
 ## Branded types
 

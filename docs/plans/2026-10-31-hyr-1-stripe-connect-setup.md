@@ -172,7 +172,7 @@ Tasks (by condition describes):
 - [ ] when CAS loses race -> uses stored id, still returns link (extra Stripe account is orphaned: gateway idempotency key prevents it in practice; document).
 - [ ] when account exists -> no create call, link only; READY athletes still get a link.
 - [ ] when Stripe unavailable -> 502 `stripe_unavailable`, nothing stored.
-- [ ] status: each of 4 states, never calls Stripe; response is `{ status }` only (`requirementsDue` deferred: needs a column filled by slice G).
+- [ ] status: each of 4 states, never calls Stripe; response is `{ status }` only (`requirementsDue` deferred: needs a column filled by slice G). Done in HYR-54: response is `{ status, requirementsDue: string[] | null }`, column `athletes.stripe_connect_requirements_due` (jsonb, NULL = never synced) written by `syncReadiness`.
 - [ ] `npm run verify`, `npm run test:integration`.
 
 Dependencies: C, E.
@@ -226,7 +226,7 @@ Dependencies: F contract (build against a fake), merge after G.
 ## Backend / frontend independence
 
 - Backend slices A-G are strictly sequential in the stack, but E is code-independent of C/D and could be dispatched in parallel to a second backend builder.
-- Web slice H is independent of backend implementation after F's contract is fixed (`POST /athletes/me/connect/onboarding-link -> { url, expiresAt }`, `GET /athletes/me/connect/status -> { status }`; `requirementsDue` deferred to a follow-up needing a column filled by slice G), so `frontend-builder` can work in parallel with G. Merge order in the stack stays G then H.
+- Web slice H is independent of backend implementation after F's contract is fixed (`POST /athletes/me/connect/onboarding-link -> { url, expiresAt }`, `GET /athletes/me/connect/status -> { status }`; `requirementsDue` deferred to a follow-up needing a column filled by slice G; delivered in HYR-54), so `frontend-builder` can work in parallel with G. Merge order in the stack stays G then H.
 
 ## Out of scope reminders (do not absorb)
 

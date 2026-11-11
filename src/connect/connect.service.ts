@@ -5,7 +5,8 @@ import { normalizeEmail } from '../common/email';
 import type { AthleteId } from '../common/ids';
 import type { StripeConnectAccountId } from '../common/stripe-ids';
 import { StripeGateway, type OnboardingLink } from '../stripe/stripe-gateway';
-import { connectStatus, type ConnectStatus } from './connect-status';
+import { connectStatus } from './connect-status';
+import type { ConnectStatusResponse } from './dto/connect-status-response';
 
 @Injectable()
 export class ConnectService {
@@ -37,6 +38,7 @@ export class ConnectService {
     const applied = await this.athletes.updateConnectReadiness(athlete.id, {
       detailsSubmitted: snapshot.detailsSubmitted,
       payoutsEnabled: snapshot.payoutsEnabled,
+      requirementsDue: snapshot.requirementsDue,
       syncedAt,
     });
 
@@ -45,10 +47,10 @@ export class ConnectService {
     }
   }
 
-  async getStatus(athleteId: AthleteId): Promise<ConnectStatus> {
+  async getStatus(athleteId: AthleteId): Promise<ConnectStatusResponse> {
     const athlete = await this.requireAthlete(athleteId);
 
-    return connectStatus(athlete);
+    return { status: connectStatus(athlete), requirementsDue: athlete.stripeConnectRequirementsDue };
   }
 
   private async requireAthlete(athleteId: AthleteId): Promise<AthleteRow> {

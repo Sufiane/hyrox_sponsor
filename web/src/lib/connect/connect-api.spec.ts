@@ -23,7 +23,7 @@ describe('createConnectApi', () => {
   describe('fetchConnectStatus', () => {
     describe('when the request succeeds', () => {
       beforeEach(() => {
-        fetchImpl.mockResolvedValue(jsonResponse({ status: 'INCOMPLETE' }));
+        fetchImpl.mockResolvedValue(jsonResponse({ status: 'INCOMPLETE', requirementsDue: ['external_account'] }));
       });
 
       it('sends a GET to the status endpoint', async () => {
@@ -34,10 +34,41 @@ describe('createConnectApi', () => {
         });
       });
 
-      it('returns the status', async () => {
+      it('returns the status and requirements due', async () => {
         await expect(build().fetchConnectStatus()).resolves.toEqual({
           ok: true,
-          value: { status: 'INCOMPLETE' },
+          value: { status: 'INCOMPLETE', requirementsDue: ['external_account'] },
+        });
+      });
+    });
+
+    describe.each([
+      ['null', null],
+      ['missing', undefined],
+      ['not an array', 'external_account'],
+      ['an array with non-strings', ['external_account', 3]],
+    ])('when requirementsDue is %s', (_label, requirementsDue) => {
+      beforeEach(() => {
+        fetchImpl.mockResolvedValue(jsonResponse({ status: 'INCOMPLETE', requirementsDue }));
+      });
+
+      it('returns null requirements', async () => {
+        await expect(build().fetchConnectStatus()).resolves.toEqual({
+          ok: true,
+          value: { status: 'INCOMPLETE', requirementsDue: null },
+        });
+      });
+    });
+
+    describe('when requirementsDue is an empty array', () => {
+      beforeEach(() => {
+        fetchImpl.mockResolvedValue(jsonResponse({ status: 'READY', requirementsDue: [] }));
+      });
+
+      it('keeps the empty array', async () => {
+        await expect(build().fetchConnectStatus()).resolves.toEqual({
+          ok: true,
+          value: { status: 'READY', requirementsDue: [] },
         });
       });
     });
