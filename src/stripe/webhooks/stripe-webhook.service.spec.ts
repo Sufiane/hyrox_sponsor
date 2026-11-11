@@ -4,6 +4,7 @@ import { InvalidValueError } from '../../common/domain-error';
 import type { StripeEvent, StripeGateway } from '../stripe-gateway';
 import type { StripeEventHandler } from './stripe-event-handler';
 import type { StripeWebhookEventDb } from './stripe-webhook-event.db';
+import { StripeEventHandlerRegistry } from './stripe-event-handler-registry';
 import { StripeWebhookService } from './stripe-webhook.service';
 
 const rawBody = Buffer.from('{"id":"evt_1"}');
@@ -22,7 +23,13 @@ describe('StripeWebhookService', () => {
   let debug: ReturnType<typeof vi.spyOn>;
 
   function build(handlers: readonly StripeEventHandler[]): StripeWebhookService {
-    return new StripeWebhookService(gateway, db, handlers);
+    const registry = new StripeEventHandlerRegistry();
+
+    for (const registered of handlers) {
+      registry.register(registered);
+    }
+
+    return new StripeWebhookService(gateway, db, registry);
   }
 
   beforeEach(() => {

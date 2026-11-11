@@ -227,4 +227,77 @@ describe('ConnectService', () => {
       });
     });
   });
+
+  describe('syncReadiness', () => {
+    const syncNow = new Date('2026-11-02T10:00:00Z');
+    const readyAccount: ConnectAccountSnapshot = {
+      ...snapshot(storedAccount),
+      detailsSubmitted: true,
+      payoutsEnabled: true,
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(syncNow);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    describe('when no athlete has the account', () => {
+      it('warns and neither calls Stripe nor writes', async () => {
+        const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+        athletes.findByStripeConnectAccountId.mockResolvedValue(null);
+
+        await expect(service.syncReadiness(storedAccount)).resolves.toBeUndefined();
+
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('acct_stored'));
+        expect(gateway.retrieveAccount).not.toHaveBeenCalled();
+        expect(athletes.updateConnectReadiness).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('when the athlete is known', () => {
+      beforeEach(() => {
+        athletes.findByStripeConnectAccountId.mockResolvedValue(athleteRow());
+        athletes.updateConnectReadiness.mockResolvedValue(true);
+      });
+
+      it('writes the current Stripe state with the time the sync started', async () => {
+        gateway.retrieveAccount.mockImplementation(async () => {
+          vi.setSystemTime(new Date('2026-11-02T10:00:05Z'));
+
+          return readyAccount;
+        });
+
+        await service.syncReadiness(storedAccount);
+
+        expect(athletes.updateConnectReadiness).toHaveBeenCalledWith(athleteId, {
+          detailsSubmitted: true,
+          payoutsEnabled: true,
+          syncedAt: syncNow,
+        });
+      });
+
+      describe('when the write is not applied', () => {
+        it('resolves without error', async () => {
+          gateway.retrieveAccount.mockResolvedValue(readyAccount);
+          athletes.updateConnectReadiness.mockResolvedValue(false);
+
+          await expect(service.syncReadiness(storedAccount)).resolves.toBeUndefined();
+        });
+      });
+
+      describe('when Stripe retrieve fails', () => {
+        it('propagates the error and writes nothing', async () => {
+          gateway.retrieveAccount.mockRejectedValue(new Error('stripe down'));
+
+          await expect(service.syncReadiness(storedAccount)).rejects.toThrow('stripe down');
+
+          expect(athletes.updateConnectReadiness).not.toHaveBeenCalled();
+        });
+      });
+    });
+  });
 });

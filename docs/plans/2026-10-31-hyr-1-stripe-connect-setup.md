@@ -196,6 +196,8 @@ Tasks:
 - [ ] when Stripe retrieve fails -> throws so webhook returns 500 and Stripe retries.
 - [ ] `npm run verify`.
 
+Known gap (accepted): an `account.updated` that arrives before the account id is stored on the athlete is dropped (warn, 200); readiness self-heals on the next event for that account. A reconciliation job is a follow-up.
+
 Dependencies: D, E, F.
 
 ## Slice H - web payouts page
