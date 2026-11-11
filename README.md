@@ -198,6 +198,10 @@ All five are required; the app refuses to boot (`env_invalid`) if any is missing
 | `STRIPE_CONNECT_RETURN_URL` | URL the athlete lands on after onboarding |
 | `STRIPE_CONNECT_REFRESH_URL` | URL used when an onboarding link expired or was already used |
 
+### Payouts page (HYR-50)
+
+The web app serves the athlete payouts page at `/account/payouts`. Set `STRIPE_CONNECT_RETURN_URL` to `<web origin>/account/payouts?return=1` (the page polls the status up to 5 times, 2 s apart, until `READY`) and `STRIPE_CONNECT_REFRESH_URL` to `<web origin>/account/payouts?refresh=1` (the page requests a fresh onboarding link and redirects to Stripe). No new web env is needed; the page uses `VITE_API_BASE_URL`.
+
 ### Connect onboarding (HYR-48)
 
 Athlete-only routes (JWT). The Stripe account is created lazily on the first link request and stored with a compare-and-set; if two requests race, the stored id wins and the extra Stripe account is orphaned (the gateway idempotency key `connect-account:<athleteId>` prevents this in practice, but only for about 24h).

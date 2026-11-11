@@ -12,6 +12,7 @@
     <LogoutButton {session} onloggedout={() => void goto('/')} />
     <a class="underline" href="/results">Race results</a>
     <a class="underline" href="/account/entries">My race entries</a>
+    <a class="underline" href="/account/payouts">Payouts</a>
     <a class="underline" href="/dev/body-map">Body map dev harness</a>
   {:else if session.status === 'anonymous'}
     <h1 class="text-lg font-semibold">Hyrox Sponsor</h1>
