@@ -58,7 +58,7 @@ describe('token isolation between athlete, staff and bidder tokens', () => {
 
   describe('when a bidder token is presented to JwtAuthGuard', () => {
     it('rejects with invalid_token', async () => {
-      const { token } = await bidderTokens.issue(bidderId);
+      const { token } = await bidderTokens.issue(bidderId, 0);
 
       await expect(jwtAuthGuard.canActivate(contextFor(bearer(token)))).rejects.toThrow('invalid_token');
     });
@@ -66,7 +66,7 @@ describe('token isolation between athlete, staff and bidder tokens', () => {
 
   describe('when a bidder token is presented to StaffGuard', () => {
     it('rejects with invalid_token', async () => {
-      const { token } = await bidderTokens.issue(bidderId);
+      const { token } = await bidderTokens.issue(bidderId, 0);
 
       await expect(staffGuard.canActivate(contextFor(bearer(token)))).rejects.toThrow('invalid_token');
     });

@@ -43,14 +43,14 @@ describe('BidderTokenService', () => {
       vi.useFakeTimers({ now: NOW });
     });
 
-    it('verifies back to the same bidder id', async () => {
-      const issued = await service.issue(id);
+    it('verifies back to the same bidder id and version', async () => {
+      const issued = await service.issue(id, 3);
 
-      await expect(service.verify(issued.token)).resolves.toBe(id);
+      await expect(service.verify(issued.token)).resolves.toEqual({ bidderId: id, tokenVersion: 3 });
     });
 
     it('expires after the configured ttl', async () => {
-      const issued = await service.issue(id);
+      const issued = await service.issue(id, 3);
 
       expect(issued.expiresAt).toEqual(new Date(NOW.getTime() + 900_000));
     });
@@ -60,7 +60,7 @@ describe('BidderTokenService', () => {
     it('rejects with bidder_token_required', async () => {
       vi.useFakeTimers({ now: NOW });
 
-      const issued = await service.issue(id);
+      const issued = await service.issue(id, 3);
 
       vi.setSystemTime(new Date(NOW.getTime() + 901_000));
 
@@ -70,19 +70,19 @@ describe('BidderTokenService', () => {
 
   describe('when the token is invalid', () => {
     it('rejects one signed with another secret', async () => {
-      const token = await signRaw({ sub: id }, {}, 'x'.repeat(32));
+      const token = await signRaw({ sub: id, ver: 0 }, {}, 'x'.repeat(32));
 
       await expect(service.verify(token)).rejects.toThrow('bidder_token_required');
     });
 
     it('rejects one with another audience', async () => {
-      const token = await signRaw({ sub: id }, { audience: 'hyrox-staff' });
+      const token = await signRaw({ sub: id, ver: 0 }, { audience: 'hyrox-staff' });
 
       await expect(service.verify(token)).rejects.toThrow('bidder_token_required');
     });
 
     it('rejects one with another issuer', async () => {
-      const token = await signRaw({ sub: id }, { issuer: 'other' });
+      const token = await signRaw({ sub: id, ver: 0 }, { issuer: 'other' });
 
       await expect(service.verify(token)).rejects.toThrow('bidder_token_required');
     });
@@ -93,8 +93,19 @@ describe('BidderTokenService', () => {
       await expect(service.verify(token)).rejects.toThrow('bidder_token_required');
     });
 
+    it.each([
+      ['missing', {}],
+      ['non-integer', { ver: 1.5 }],
+      ['negative', { ver: -1 }],
+      ['a string', { ver: '1' }],
+    ])('rejects one with a %s version', async (_label, claims) => {
+      const token = await signRaw({ sub: id, ...claims });
+
+      await expect(service.verify(token)).rejects.toThrow('bidder_token_required');
+    });
+
     it('rejects one signed with another algorithm', async () => {
-      const token = await signRaw({ sub: id }, { algorithm: 'HS512' });
+      const token = await signRaw({ sub: id, ver: 0 }, { algorithm: 'HS512' });
 
       await expect(service.verify(token)).rejects.toThrow('bidder_token_required');
     });
@@ -102,7 +113,13 @@ describe('BidderTokenService', () => {
     it('rejects an unsigned token', async () => {
       const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
       const body = Buffer.from(
-        JSON.stringify({ sub: id, aud: 'hyrox-bidder', iss: 'hyrox-api', exp: Math.floor(Date.now() / 1000) + 900 }),
+        JSON.stringify({
+          sub: id,
+          ver: 0,
+          aud: 'hyrox-bidder',
+          iss: 'hyrox-api',
+          exp: Math.floor(Date.now() / 1000) + 900,
+        }),
       ).toString('base64url');
 
       await expect(service.verify(`${header}.${body}.`)).rejects.toThrow('bidder_token_required');
@@ -123,7 +140,7 @@ describe('BidderTokenService', () => {
 
   describe('when verification fails', () => {
     it('logs a warning without the token', async () => {
-      const token = await signRaw({ sub: id }, {}, 'x'.repeat(32));
+      const token = await signRaw({ sub: id, ver: 0 }, {}, 'x'.repeat(32));
 
       await expect(service.verify(token)).rejects.toThrow();
 

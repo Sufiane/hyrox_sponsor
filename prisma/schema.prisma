@@ -95,11 +95,15 @@ model StaffRefreshToken {
 }
 
 model Bidder {
-  id               String   @id @default(cuid())
-  email            String   @unique
-  stripeCustomerId String?  @unique @map("stripe_customer_id")
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                     String   @id @default(cuid())
+  email                  String   @unique
+  stripeCustomerId       String?  @unique @map("stripe_customer_id")
+  defaultPaymentMethodId String?  @map("default_payment_method_id")
+  cardBrand              String?  @map("card_brand")
+  cardLast4              String?  @map("card_last4")
+  tokenVersion           Int      @default(0) @map("token_version")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   bids Bid[]
 
