@@ -1,5 +1,11 @@
 import { InvalidValueError } from './domain-error';
-import { stripeConnectAccountId, stripeCustomerId, stripePaymentIntentId } from './stripe-ids';
+import {
+  stripeConnectAccountId,
+  stripeCustomerId,
+  stripePaymentIntentId,
+  stripePaymentMethodId,
+  stripeSetupIntentId,
+} from './stripe-ids';
 
 const cases = [
   {
@@ -19,6 +25,18 @@ const cases = [
     build: stripeCustomerId,
     prefix: 'cus_',
     code: 'stripe_customer_id_invalid',
+  },
+  {
+    name: 'stripeSetupIntentId',
+    build: stripeSetupIntentId,
+    prefix: 'seti_',
+    code: 'stripe_setup_intent_id_invalid',
+  },
+  {
+    name: 'stripePaymentMethodId',
+    build: stripePaymentMethodId,
+    prefix: 'pm_',
+    code: 'stripe_payment_method_id_invalid',
   },
 ];
 
