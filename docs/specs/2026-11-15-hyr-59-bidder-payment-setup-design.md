@@ -43,12 +43,14 @@ Each is resolved on judgment; the coordinator may overrule before the plan runs.
 | Q12 | Idempotency of the endpoint | Not idempotent by design: every call creates a fresh setup intent and a fresh token. Customer creation is idempotent. | Matches the HYR-58 decision (no setup-intent idempotency key). |
 | Q13 | Where does the orchestration live | OVERRULED by user: usecase layer. `src/bidders/usecases/create-payment-setup/create-payment-setup.usecase.ts` (`execute`) + `create-payment-setup.usecase.db.ts` (only ORM importer, narrow queries) + `create-payment-setup.module.ts` (pattern of `PlaceBidModule`). Call direction: `BidderController` -> `BidderService.createPaymentSetup` (thin delegate) -> usecase -> usecase db. The usecase never calls `BidderService`; it normalises with the common constructors (`normalizeEmail`, `bidderId`, `stripeCustomerId`) and re-implements the race-safe attach in its own db. | The flow has several rules (token gate, lazy customer, attach race, token issue) that belong to one operation. No interim shortcut: `BidderDb` and `BidderService.attachStripeCustomer` are untouched and not entangled, so the usecase db is a full physical copy of the two queries it needs. The duplication (upsert by email, conditional customer-id write) is accepted; follow-up candidate: once HYR-11 settles, check whether `BidderService.attachStripeCustomer` still has any caller and delete it if not. |
 | Q14 | Column constraint | Hand-written CHECK: all three columns null, or `default_payment_method_id` and `card_brand` non-null and `card_last4 ~ '^[0-9]{4}$'`. | Cheap guard for HYR-60 / HYR-11 readers that never want a half-written card. Not branded in the DB layer yet; HYR-60 / HYR-11 brand `StripePaymentMethodId` at their I/O boundary. |
+| Q15 | Token invalidation when a card is saved | `bidders.token_version INTEGER NOT NULL DEFAULT 0`; the token carries claim `ver`. A card-holder's token is valid only while `ver === bidder.tokenVersion`. HYR-60 MUST write `default_payment_method_id`, `card_brand`, `card_last4` and `token_version = token_version + 1` in ONE atomic UPDATE. | Without it, a token issued to an attacker before the owner saved a card keeps working after the card exists (squatting survives card save). Cost: one column and a version compare. Alternative considered: compare `iat` against a `card_saved_at` column (clock-dependent, same column cost). |
 
 ### Known risks accepted with this design
 
 - Squatting: before a bidder has a card, anyone typing the email gets a token and can attach their own card; the real owner then needs the token (locked out until HYR-62). Same trust model as HYR-4 (unverified email); the loss is a blocked bid, not a leak.
 - Race window: between setup-intent creation and the HYR-60 webhook the column is still null, so a second caller can obtain a token and a second setup intent for the same customer. HYR-60 decides which confirmed card becomes default (recommend: first write wins, `WHERE default_payment_method_id IS NULL`).
-- No revocation: a leaked token is valid until `exp`.
+- No revocation before a card exists: a leaked token is valid until `exp`. Once a card is saved, the HYR-60 version bump kills every earlier token. HYR-11 reads `BidderTokenService.verify` (returns `{ bidderId, tokenVersion }`) and MUST also compare `tokenVersion` with the bidder row.
+- Race: a card can land between the first read and token issue. The usecase re-reads the row (`findById`) right after the setup intent and, if the bidder now has a card and the request carried no token matching the new version, rejects instead of issuing.
 - `stripeCustomerId(...)` validating constructor runs on a stored value; corrupt data yields `400 stripe_customer_id_invalid`, which is really a data bug. Acceptable.
 
 ## 4. Design
@@ -61,9 +63,10 @@ Each is resolved on judgment; the coordinator may overrule before the plan runs.
 defaultPaymentMethodId String? @map("default_payment_method_id")
 cardBrand              String? @map("card_brand")
 cardLast4              String? @map("card_last4")
+tokenVersion           Int     @default(0) @map("token_version")
 ```
 
-Migration `prisma/migrations/20261115090000_add_bidder_payment_method/migration.sql`: the three `ADD COLUMN ... TEXT` statements (Prisma-generated shape) plus the `-- Hand-written` CHECK from Q14. Drift check: `prisma migrate diff` from migrations to schema must be empty (CHECK constraints are not modelled in the schema, same as the email check).
+Migration `prisma/migrations/20261115090000_add_bidder_payment_method/migration.sql`: the four `ADD COLUMN` statements (three `TEXT`, `token_version INTEGER NOT NULL DEFAULT 0`) (Prisma-generated shape) plus the `-- Hand-written` CHECK from Q14. Drift check: `prisma migrate diff` from migrations to schema must be empty (CHECK constraints are not modelled in the schema, same as the email check).
 
 ### 4.2 Common
 
@@ -72,8 +75,8 @@ Migration `prisma/migrations/20261115090000_add_bidder_payment_method/migration.
 ### 4.3 Token service (`src/bidders/bidder-token.service.ts`, `bidder-token.config.ts`)
 
 - `BidderTokenConfig` reads `BIDDER_TOKEN_TTL_SECONDS` (like `StaffAuthConfig`).
-- `issue(id: BidderId): Promise<{ token: BidderToken; expiresAt: Date }>`: `signAsync({ sub: id }, { algorithm: 'HS256', expiresIn, audience, issuer })`.
-- `verify(raw: string | undefined): Promise<BidderId>`: undefined / empty / verify failure / missing `sub` -> warn log (no token text) + `UnauthorizedException('bidder_token_required')`; success -> `bidderId(payload.sub)`.
+- `issue(id: BidderId, tokenVersion: number): Promise<{ token: BidderToken; expiresAt: Date }>`: `signAsync({ sub: id, ver: tokenVersion }, { algorithm: 'HS256', expiresIn, audience, issuer })`.
+- `verify(raw: string | undefined): Promise<{ bidderId: BidderId; tokenVersion: number }>`: undefined / empty / verify failure / missing `sub` / missing, non-integer or negative `ver` -> warn log (no token text) + `UnauthorizedException('bidder_token_required')`; success -> `{ bidderId(payload.sub), payload.ver }`.
 - Lives in its own `BidderTokenModule` (`src/bidders/bidder-token.module.ts`: `JwtModule.registerAsync` with `BIDDER_JWT_SECRET`, `BidderTokenConfig`, `BidderTokenService`, exports the service). Separate module so both the usecase module and HYR-11's bid module can import it without a cycle with `BiddersModule`. `BiddersModule` imports and re-exports it.
 
 ### 4.4 Usecase (`src/bidders/usecases/create-payment-setup/`)
@@ -85,11 +88,13 @@ execute({ email: string, bidderToken: string | undefined }): Promise<PaymentSetu
  1. email = normalizeEmail(raw)                              // email_invalid -> 400
  2. bidder = db.upsertByEmail(email)
  3. if bidder.defaultPaymentMethodId != null:
-      tokenBidderId = tokenService.verify(bidderToken)
-      if tokenBidderId !== bidder.id -> warn + 401 bidder_token_required
+      verified = tokenService.verify(bidderToken)
+      if verified.bidderId !== bidder.id or verified.tokenVersion !== bidder.tokenVersion
+        -> warn (mismatch kind, never the token) + 401 bidder_token_required
  4. customerId = bidder.stripeCustomerId ?? createCustomer + attach (below)
  5. setupIntent = gateway.createSetupIntent(customerId)
- 6. issued = tokenService.issue(bidderId)
+ 6. current = db.findById(id)                              // re-read; if it now has a card and the version/card changed since step 2, repeat the step 3 check
+    issued = tokenService.issue(id, current.tokenVersion)
  7. return { clientSecret, bidderToken, bidderTokenExpiresAt }
 ```
 
@@ -145,6 +150,6 @@ Docs (spec + plan, ~450 lines) go in their own `docs` commit or PR. No frontend 
 ## 7. Follow-ups (own tickets, not footnotes)
 
 - HYR-62: token reissue for locked-out guests (already filed; blocks HYR-32 pre-deploy).
-- HYR-11: enforce `verify` on bids, "card required" gate.
-- HYR-60: fill the three columns; decide default-card write rule (first write wins).
+- HYR-11: enforce `verify` on bids, "card required" gate; compare the returned `tokenVersion` with `bidders.token_version`.
+- HYR-60: fill the three columns AND `token_version = token_version + 1` in one atomic UPDATE; decide default-card write rule (first write wins).
 - Deploy config: add `BIDDER_JWT_SECRET` (and optional `BIDDER_TOKEN_TTL_SECONDS`) to every environment before merging PR A to a deployed branch.

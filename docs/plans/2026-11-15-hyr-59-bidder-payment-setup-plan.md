@@ -122,8 +122,8 @@ export function bidderToken(value: string): BidderToken {
 
 **Interfaces:**
 - `BidderTokenConfig { readonly ttlSeconds: number }` (reads `BIDDER_TOKEN_TTL_SECONDS`, like `StaffAuthConfig`).
-- `BidderTokenService.issue(id: BidderId): Promise<{ token: BidderToken; expiresAt: Date }>`
-- `BidderTokenService.verify(raw: string | undefined): Promise<BidderId>`; throws `UnauthorizedException('bidder_token_required')`.
+- `BidderTokenService.issue(id: BidderId, tokenVersion: number): Promise<{ token: BidderToken; expiresAt: Date }>` (claim `ver`)
+- `BidderTokenService.verify(raw: string | undefined): Promise<{ bidderId: BidderId; tokenVersion: number }>`; rejects a missing, non-integer or negative `ver`; throws `UnauthorizedException('bidder_token_required')`.
 
 - [ ] **Step 1 (failing spec)**, constructing `new BidderTokenService(new JwtService({ secret }), { ttlSeconds: 900 })`, `Logger.prototype.warn` spied. Describes:
   - `when issuing a token` -> verify round trip returns the same id; `expiresAt` is about now + ttl (fake timers).
@@ -211,6 +211,7 @@ export class BidderTokenService {
 - [ ] **Step 1:** In `model Bidder` add after `stripeCustomerId`:
 
 ```prisma
+  tokenVersion           Int     @default(0) @map("token_version")
   defaultPaymentMethodId String? @map("default_payment_method_id")
   cardBrand              String? @map("card_brand")
   cardLast4              String? @map("card_last4")
@@ -234,6 +235,8 @@ ALTER TABLE "bidders" ADD CONSTRAINT "bidders_card_all_or_none_check" CHECK (
 - [ ] **Step 3:** Apply to local DB (`npx prisma migrate deploy`), `npx prisma generate`, then drift check: diff migrations to schema against a fresh shadow DB, expect `-- This is an empty migration.`; drop the shadow DB.
 - [ ] **Step 4:** Sanity SQL (psql): half-written row (`card_brand` only) fails the CHECK; all three valid passes; `card_last4 = '12a4'` fails. Rollback test rows. (Permanent coverage is the int spec in Task 9.)
 - [ ] **Step 5:** `npm run typecheck`. Commit `feat(bidders): add payment method columns`.
+
+> **Amendment (security review, Q15):** `bidders.token_version INTEGER NOT NULL DEFAULT 0` is added in the same migration; tokens carry `ver`; the usecase requires `token.bidderId === bidder.id && token.tokenVersion === bidder.tokenVersion` when a card exists, re-reads the row (`findById` on the usecase db) right before issuing, and issues with the current `tokenVersion`. HYR-60 MUST set the three card columns and increment `token_version` in one atomic UPDATE; HYR-11 compares `verify().tokenVersion` with the row. PR B grows past the 800-line cap with this (about 890 changed lines excluding docs); controller/DTO/README stay in PR C.
 
 ### Task 6: Usecase db
 
