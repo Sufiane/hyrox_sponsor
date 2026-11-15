@@ -3,8 +3,13 @@ import type { ConfigService } from '@nestjs/config';
 import { type MockInstance } from 'vitest';
 import { normalizeEmail } from '../common/email';
 import { InvalidValueError } from '../common/domain-error';
-import { athleteId } from '../common/ids';
-import { stripeConnectAccountId } from '../common/stripe-ids';
+import { athleteId, bidderId } from '../common/ids';
+import {
+  stripeConnectAccountId,
+  stripeCustomerId,
+  stripePaymentMethodId,
+  stripeSetupIntentId,
+} from '../common/stripe-ids';
 import type { EnvironmentVariables } from '../config/env.validation';
 import { StripeMisconfiguredError, StripeRejectedError, StripeUnavailableError } from '../common/stripe-errors';
 import { PAYOUT_SCHEDULE, STRIPE_API_VERSION, StripeAdapter } from './stripe.adapter';
@@ -14,6 +19,9 @@ const mocks = vi.hoisted(() => ({
   accountsCreate: vi.fn(),
   accountsRetrieve: vi.fn(),
   accountLinksCreate: vi.fn(),
+  customersCreate: vi.fn(),
+  setupIntentsCreate: vi.fn(),
+  paymentMethodsRetrieve: vi.fn(),
   constructEvent: vi.fn(),
 }));
 
@@ -21,6 +29,9 @@ vi.mock('stripe', () => ({
   default: class FakeStripe {
     accounts = { create: mocks.accountsCreate, retrieve: mocks.accountsRetrieve };
     accountLinks = { create: mocks.accountLinksCreate };
+    customers = { create: mocks.customersCreate };
+    setupIntents = { create: mocks.setupIntentsCreate };
+    paymentMethods = { retrieve: mocks.paymentMethodsRetrieve };
     webhooks = { constructEvent: mocks.constructEvent };
 
     constructor(...args: unknown[]) {
@@ -42,6 +53,7 @@ const config = {
 } as unknown as ConfigService<EnvironmentVariables, true>;
 
 const ATHLETE = athleteId('athlete-1');
+const BIDDER = bidderId('bidder-1');
 const EMAIL = normalizeEmail('Ath@Example.com');
 
 function rawAccount(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -142,6 +154,178 @@ describe('StripeAdapter', () => {
       const link = await adapter.createOnboardingLink(stripeConnectAccountId('acct_123'));
 
       expect(link).toEqual({ url: 'https://connect.stripe.com/x', expiresAt: new Date(1_800_000_000_000) });
+    });
+  });
+
+  describe('when creating a customer', () => {
+    beforeEach(() => {
+      mocks.customersCreate.mockResolvedValue({ id: 'cus_123' });
+    });
+
+    it('sends the email and bidder metadata with the idempotency key', async () => {
+      await adapter.createCustomer({ bidderId: BIDDER, email: EMAIL });
+
+      expect(mocks.customersCreate).toHaveBeenCalledWith(
+        { email: 'ath@example.com', metadata: { bidderId: 'bidder-1' } },
+        { idempotencyKey: 'bidder-customer:bidder-1' },
+      );
+    });
+
+    it('returns the branded customer id', async () => {
+      const id = await adapter.createCustomer({ bidderId: BIDDER, email: EMAIL });
+
+      expect(id).toBe(stripeCustomerId('cus_123'));
+    });
+
+    describe('when stripe returns a malformed customer id', () => {
+      beforeEach(() => {
+        mocks.customersCreate.mockResolvedValue({ id: 'xyz_1' });
+      });
+
+      it('maps to stripe_unavailable', async () => {
+        await expect(adapter.createCustomer({ bidderId: BIDDER, email: EMAIL })).rejects.toBeInstanceOf(
+          StripeUnavailableError,
+        );
+      });
+
+      it('logs the detail', async () => {
+        await adapter.createCustomer({ bidderId: BIDDER, email: EMAIL }).catch(() => undefined);
+
+        expect(logError).toHaveBeenCalledWith(expect.stringContaining('malformed customer id'));
+      });
+    });
+  });
+
+  describe('when creating a setup intent', () => {
+    const CUSTOMER = stripeCustomerId('cus_123');
+
+    beforeEach(() => {
+      mocks.setupIntentsCreate.mockResolvedValue({ id: 'seti_123', client_secret: 'seti_123_secret_abc' });
+    });
+
+    it('sends an off-session card-only request for the customer', async () => {
+      await adapter.createSetupIntent(CUSTOMER);
+
+      expect(mocks.setupIntentsCreate).toHaveBeenCalledWith({
+        customer: 'cus_123',
+        usage: 'off_session',
+        allowed_payment_method_types: ['card'],
+      });
+    });
+
+    it('returns the branded id and client secret', async () => {
+      const handle = await adapter.createSetupIntent(CUSTOMER);
+
+      expect(handle).toEqual({ id: stripeSetupIntentId('seti_123'), clientSecret: 'seti_123_secret_abc' });
+    });
+
+    describe('when stripe returns no client secret', () => {
+      beforeEach(() => {
+        mocks.setupIntentsCreate.mockResolvedValue({ id: 'seti_123', client_secret: null });
+      });
+
+      it('maps to stripe_unavailable', async () => {
+        await expect(adapter.createSetupIntent(CUSTOMER)).rejects.toBeInstanceOf(StripeUnavailableError);
+      });
+
+      it('logs the setup intent id', async () => {
+        await adapter.createSetupIntent(CUSTOMER).catch(() => undefined);
+
+        expect(logError).toHaveBeenCalledWith(expect.stringContaining('seti_123'));
+      });
+    });
+
+    describe('when stripe returns a malformed setup intent id', () => {
+      beforeEach(() => {
+        mocks.setupIntentsCreate.mockResolvedValue({ id: 'xyz_1', client_secret: 'secret' });
+      });
+
+      it('maps to stripe_unavailable', async () => {
+        await expect(adapter.createSetupIntent(CUSTOMER)).rejects.toBeInstanceOf(StripeUnavailableError);
+      });
+
+      it('logs the detail', async () => {
+        await adapter.createSetupIntent(CUSTOMER).catch(() => undefined);
+
+        expect(logError).toHaveBeenCalledWith(expect.stringContaining('malformed setup intent id'));
+      });
+    });
+  });
+
+  describe('when retrieving a payment method', () => {
+    const PAYMENT_METHOD = stripePaymentMethodId('pm_123');
+
+    beforeEach(() => {
+      mocks.paymentMethodsRetrieve.mockResolvedValue({
+        id: 'pm_123',
+        type: 'card',
+        card: { brand: 'visa', last4: '4242', exp_month: 8, exp_year: 2030 },
+      });
+    });
+
+    it('retrieves by id', async () => {
+      await adapter.retrievePaymentMethod(PAYMENT_METHOD);
+
+      expect(mocks.paymentMethodsRetrieve).toHaveBeenCalledWith('pm_123');
+    });
+
+    it('returns the card display data with a branded id', async () => {
+      const snapshot = await adapter.retrievePaymentMethod(PAYMENT_METHOD);
+
+      expect(snapshot).toEqual({
+        id: stripePaymentMethodId('pm_123'),
+        brand: 'visa',
+        last4: '4242',
+        expMonth: 8,
+        expYear: 2030,
+      });
+    });
+
+    describe('when the payment method is not a card', () => {
+      beforeEach(() => {
+        mocks.paymentMethodsRetrieve.mockResolvedValue({ id: 'pm_123', type: 'us_bank_account' });
+      });
+
+      it('maps to stripe_unavailable', async () => {
+        await expect(adapter.retrievePaymentMethod(PAYMENT_METHOD)).rejects.toBeInstanceOf(StripeUnavailableError);
+      });
+
+      it('logs the payment method id and type', async () => {
+        await adapter.retrievePaymentMethod(PAYMENT_METHOD).catch(() => undefined);
+
+        expect(logError).toHaveBeenCalledWith(expect.stringContaining('pm_123'));
+        expect(logError).toHaveBeenCalledWith(expect.stringContaining('us_bank_account'));
+      });
+    });
+
+    describe('when stripe returns a malformed payment method id', () => {
+      beforeEach(() => {
+        mocks.paymentMethodsRetrieve.mockResolvedValue({
+          id: 'xyz_1',
+          type: 'card',
+          card: { brand: 'visa', last4: '4242', exp_month: 8, exp_year: 2030 },
+        });
+      });
+
+      it('maps to stripe_unavailable', async () => {
+        await expect(adapter.retrievePaymentMethod(PAYMENT_METHOD)).rejects.toBeInstanceOf(StripeUnavailableError);
+      });
+
+      it('logs the detail', async () => {
+        await adapter.retrievePaymentMethod(PAYMENT_METHOD).catch(() => undefined);
+
+        expect(logError).toHaveBeenCalledWith(expect.stringContaining('malformed payment method id'));
+      });
+    });
+
+    describe('when the payment method does not exist', () => {
+      beforeEach(() => {
+        mocks.paymentMethodsRetrieve.mockRejectedValue(stripeFailure('StripeInvalidRequestError'));
+      });
+
+      it('maps to stripe_request_rejected', async () => {
+        await expect(adapter.retrievePaymentMethod(PAYMENT_METHOD)).rejects.toBeInstanceOf(StripeRejectedError);
+      });
     });
   });
 
@@ -305,6 +489,21 @@ describe('StripeAdapter', () => {
       'retrieveAccount',
       mocks.accountsRetrieve,
       (adapter: StripeAdapter): Promise<unknown> => adapter.retrieveAccount(stripeConnectAccountId('acct_123')),
+    ],
+    [
+      'createCustomer',
+      mocks.customersCreate,
+      (adapter: StripeAdapter): Promise<unknown> => adapter.createCustomer({ bidderId: BIDDER, email: EMAIL }),
+    ],
+    [
+      'createSetupIntent',
+      mocks.setupIntentsCreate,
+      (adapter: StripeAdapter): Promise<unknown> => adapter.createSetupIntent(stripeCustomerId('cus_123')),
+    ],
+    [
+      'retrievePaymentMethod',
+      mocks.paymentMethodsRetrieve,
+      (adapter: StripeAdapter): Promise<unknown> => adapter.retrievePaymentMethod(stripePaymentMethodId('pm_123')),
     ],
   ])('%s error mapping', (_name, sdkMethod, invoke) => {
     describe.each([['StripeConnectionError'], ['StripeAPIError'], ['StripeRateLimitError']])(

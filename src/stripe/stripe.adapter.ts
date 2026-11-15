@@ -2,14 +2,25 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { InvalidValueError } from '../common/domain-error';
-import { stripeConnectAccountId, type StripeConnectAccountId } from '../common/stripe-ids';
+import {
+  stripeConnectAccountId,
+  stripeCustomerId,
+  stripePaymentMethodId,
+  stripeSetupIntentId,
+  type StripeConnectAccountId,
+  type StripeCustomerId,
+  type StripePaymentMethodId,
+} from '../common/stripe-ids';
 import type { EnvironmentVariables } from '../config/env.validation';
 import { StripeMisconfiguredError, StripeRejectedError, StripeUnavailableError } from '../common/stripe-errors';
 import {
   StripeGateway,
   type ConnectAccountSnapshot,
+  type CreateCustomerInput,
   type CreateExpressAccountInput,
   type OnboardingLink,
+  type PaymentMethodSnapshot,
+  type SetupIntentHandle,
   type StripeEvent,
   type WebhookChannel,
 } from './stripe-gateway';
@@ -91,6 +102,56 @@ export class StripeAdapter implements StripeGateway {
     return this.toSnapshot(account);
   }
 
+  async createCustomer(input: CreateCustomerInput): Promise<StripeCustomerId> {
+    const customer = await this.call('createCustomer', () =>
+      this.client.customers.create(
+        { email: input.email, metadata: { bidderId: input.bidderId } },
+        { idempotencyKey: `bidder-customer:${input.bidderId}` },
+      ),
+    );
+
+    return this.brandReturnedId('customer', customer.id, stripeCustomerId);
+  }
+
+  async createSetupIntent(customerId: StripeCustomerId): Promise<SetupIntentHandle> {
+    const intent = await this.call('createSetupIntent', () =>
+      this.client.setupIntents.create({
+        customer: customerId,
+        usage: 'off_session',
+        allowed_payment_method_types: ['card'],
+      }),
+    );
+
+    if (intent.client_secret == null) {
+      this.logger.error(`Stripe setup intent ${intent.id} has no client secret`);
+
+      throw new StripeUnavailableError();
+    }
+
+    return {
+      id: this.brandReturnedId('setup intent', intent.id, stripeSetupIntentId),
+      clientSecret: intent.client_secret,
+    };
+  }
+
+  async retrievePaymentMethod(paymentMethodId: StripePaymentMethodId): Promise<PaymentMethodSnapshot> {
+    const method = await this.call('retrievePaymentMethod', () => this.client.paymentMethods.retrieve(paymentMethodId));
+
+    if (method.card == null) {
+      this.logger.error(`Stripe payment method ${method.id} is not a card (${method.type})`);
+
+      throw new StripeUnavailableError();
+    }
+
+    return {
+      id: this.brandReturnedId('payment method', method.id, stripePaymentMethodId),
+      brand: method.card.brand,
+      last4: method.card.last4,
+      expMonth: method.card.exp_month,
+      expYear: method.card.exp_year,
+    };
+  }
+
   constructWebhookEvent(rawBody: Buffer, signature: string, channel: WebhookChannel): StripeEvent {
     let event: Stripe.Event;
 
@@ -112,14 +173,14 @@ export class StripeAdapter implements StripeGateway {
       id: event.id,
       type: event.type,
       created: secondsToDate(event.created),
-      accountId: event.account == null ? null : this.brandAccountId(event.account),
+      accountId: event.account == null ? null : this.brandReturnedId('account', event.account, stripeConnectAccountId),
       data: event.data.object as unknown as Record<string, unknown>,
     };
   }
 
   private toSnapshot(account: Stripe.Account): ConnectAccountSnapshot {
     return {
-      id: this.brandAccountId(account.id),
+      id: this.brandReturnedId('account', account.id, stripeConnectAccountId),
       detailsSubmitted: account.details_submitted ?? false,
       payoutsEnabled: account.payouts_enabled ?? false,
       transfersActive: account.capabilities?.transfers === 'active',
@@ -128,11 +189,11 @@ export class StripeAdapter implements StripeGateway {
     };
   }
 
-  private brandAccountId(raw: string): StripeConnectAccountId {
+  private brandReturnedId<T>(label: string, raw: string, build: (value: string) => T): T {
     try {
-      return stripeConnectAccountId(raw);
+      return build(raw);
     } catch (error) {
-      this.logger.error(`Stripe returned a malformed account id: ${this.describe(error)} (${raw})`);
+      this.logger.error(`Stripe returned a malformed ${label} id: ${this.describe(error)} (${raw})`);
 
       throw new StripeUnavailableError();
     }

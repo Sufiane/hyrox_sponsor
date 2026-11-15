@@ -4,6 +4,8 @@ import { InvalidValueError } from './domain-error';
 export type StripePaymentIntentId = Brand<string, 'StripePaymentIntentId'>;
 export type StripeCustomerId = Brand<string, 'StripeCustomerId'>;
 export type StripeConnectAccountId = Brand<string, 'StripeConnectAccountId'>;
+export type StripeSetupIntentId = Brand<string, 'StripeSetupIntentId'>;
+export type StripePaymentMethodId = Brand<string, 'StripePaymentMethodId'>;
 
 const STRIPE_ID_MAX_LENGTH = 255;
 
@@ -27,4 +29,12 @@ export function stripePaymentIntentId(value: string): StripePaymentIntentId {
 
 export function stripeCustomerId(value: string): StripeCustomerId {
   return prefixedStripeId(value, 'cus_', 'stripe_customer_id_invalid');
+}
+
+export function stripeSetupIntentId(value: string): StripeSetupIntentId {
+  return prefixedStripeId(value, 'seti_', 'stripe_setup_intent_id_invalid');
+}
+
+export function stripePaymentMethodId(value: string): StripePaymentMethodId {
+  return prefixedStripeId(value, 'pm_', 'stripe_payment_method_id_invalid');
 }
