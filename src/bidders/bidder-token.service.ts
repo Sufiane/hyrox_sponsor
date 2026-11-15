@@ -8,6 +8,8 @@ const BIDDER_AUDIENCE = 'hyrox-bidder';
 const TOKEN_ISSUER = 'hyrox-api';
 const MILLIS_PER_SECOND = 1000;
 
+export type VerifiedBidderToken = { bidderId: BidderId; tokenVersion: number };
+
 export type IssuedBidderToken = { token: BidderToken; expiresAt: Date };
 
 @Injectable()
@@ -19,9 +21,9 @@ export class BidderTokenService {
     private readonly config: BidderTokenConfig,
   ) {}
 
-  async issue(id: BidderId): Promise<IssuedBidderToken> {
+  async issue(id: BidderId, tokenVersion: number): Promise<IssuedBidderToken> {
     const signed = await this.jwt.signAsync(
-      { sub: id },
+      { sub: id, ver: tokenVersion },
       { algorithm: 'HS256', expiresIn: this.config.ttlSeconds, audience: BIDDER_AUDIENCE, issuer: TOKEN_ISSUER },
     );
 
@@ -31,7 +33,7 @@ export class BidderTokenService {
     };
   }
 
-  async verify(raw: string | undefined): Promise<BidderId> {
+  async verify(raw: string | undefined): Promise<VerifiedBidderToken> {
     if (raw === undefined || raw.trim() === '') {
       throw this.reject('missing token');
     }
@@ -42,16 +44,22 @@ export class BidderTokenService {
       throw this.reject('missing subject');
     }
 
+    const version = payload.ver;
+
+    if (typeof version !== 'number' || !Number.isInteger(version) || version < 0) {
+      throw this.reject('missing or invalid version');
+    }
+
     try {
-      return bidderId(payload.sub);
+      return { bidderId: bidderId(payload.sub), tokenVersion: version };
     } catch (error) {
       throw this.reject(error instanceof Error ? error.message : String(error));
     }
   }
 
-  private async decode(token: string): Promise<{ sub?: unknown }> {
+  private async decode(token: string): Promise<{ sub?: unknown; ver?: unknown }> {
     try {
-      return await this.jwt.verifyAsync<{ sub?: unknown }>(token, {
+      return await this.jwt.verifyAsync<{ sub?: unknown; ver?: unknown }>(token, {
         algorithms: ['HS256'],
         audience: BIDDER_AUDIENCE,
         issuer: TOKEN_ISSUER,

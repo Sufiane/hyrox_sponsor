@@ -3,6 +3,11 @@ import { normalizeEmail } from '../common/email';
 import type { BidderId } from '../common/ids';
 import type { StripeCustomerId } from '../common/stripe-ids';
 import { BidderDb } from './bidder.db';
+import {
+  CreatePaymentSetupUsecase,
+  type CreatePaymentSetupInput,
+  type CreatePaymentSetupResult,
+} from './usecases/create-payment-setup/create-payment-setup.usecase';
 
 type BidderRecord = Awaited<ReturnType<BidderDb['upsertByEmail']>>;
 
@@ -10,7 +15,14 @@ type BidderRecord = Awaited<ReturnType<BidderDb['upsertByEmail']>>;
 export class BidderService {
   private readonly logger = new Logger(BidderService.name);
 
-  constructor(private readonly db: BidderDb) {}
+  constructor(
+    private readonly db: BidderDb,
+    private readonly createPaymentSetupUsecase: CreatePaymentSetupUsecase,
+  ) {}
+
+  createPaymentSetup(input: CreatePaymentSetupInput): Promise<CreatePaymentSetupResult> {
+    return this.createPaymentSetupUsecase.execute(input);
+  }
 
   async getOrCreateByEmail(rawEmail: string): Promise<BidderRecord> {
     return this.db.upsertByEmail(normalizeEmail(rawEmail));

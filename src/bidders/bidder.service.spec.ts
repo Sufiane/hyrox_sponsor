@@ -7,25 +7,47 @@ import type { BidderId } from '../common/ids';
 import type { StripeCustomerId } from '../common/stripe-ids';
 import { BidderService } from './bidder.service';
 import { BidderDb } from './bidder.db';
+import { CreatePaymentSetupUsecase } from './usecases/create-payment-setup/create-payment-setup.usecase';
 
 describe('BidderService', () => {
   const bidderId = 'bidder-1' as BidderId;
   const customerId = 'cus_123' as StripeCustomerId;
   let db: DeepMockProxy<BidderDb>;
+  let usecase: DeepMockProxy<CreatePaymentSetupUsecase>;
   let service: BidderService;
   let warn: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
     db = mockDeep<BidderDb>();
+    usecase = mockDeep<CreatePaymentSetupUsecase>();
     warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const moduleRef = await Test.createTestingModule({
-      providers: [BidderService, { provide: BidderDb, useValue: db }],
+      providers: [
+        BidderService,
+        { provide: BidderDb, useValue: db },
+        { provide: CreatePaymentSetupUsecase, useValue: usecase },
+      ],
     }).compile();
     service = moduleRef.get(BidderService);
   });
 
   afterEach(() => {
     warn.mockRestore();
+  });
+
+  describe('createPaymentSetup', () => {
+    describe('when called', () => {
+      it('returns the usecase result for the same input', async () => {
+        const input = { email: 'jamie@x.com', bidderToken: undefined };
+        const result = { clientSecret: 'secret' };
+        usecase.execute.mockResolvedValue(result as never);
+
+        const returned = await service.createPaymentSetup(input);
+
+        expect(returned).toBe(result);
+        expect(usecase.execute).toHaveBeenCalledWith(input);
+      });
+    });
   });
 
   describe('getOrCreateByEmail', () => {
