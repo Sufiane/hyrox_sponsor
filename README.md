@@ -82,6 +82,8 @@ Access token 15 min, refresh token 7 days. Staff-only controllers live under `/s
 
 Env (required, validated at boot): `STAFF_JWT_SECRET` (min 32 chars, must differ from `JWT_SECRET`), `STAFF_JWT_TTL_SECONDS` (default 900), `STAFF_REFRESH_TOKEN_TTL_SECONDS` (default 604800). Existing local `.env` files need the new variables.
 
+Env (required, validated at boot): `BIDDER_JWT_SECRET` (min 32 chars, must differ from `JWT_SECRET` and `STAFF_JWT_SECRET`), `BIDDER_TOKEN_TTL_SECONDS` (default 86400). Existing local `.env` files need the new secret.
+
 ### Bib review API (HYR-33)
 
 All routes need `Authorization: Bearer <staff access jwt>` (missing, invalid or athlete token gives 401 `invalid_token`). Spec: `docs/specs/2026-10-10-bib-review-api-design.md`.
