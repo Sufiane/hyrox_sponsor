@@ -18,6 +18,7 @@ const DEFAULT_ACCESS_TTL_SECONDS = 900;
 const DEFAULT_REFRESH_TTL_SECONDS = 2_592_000;
 const DEFAULT_STAFF_ACCESS_TTL_SECONDS = 900;
 const DEFAULT_STAFF_REFRESH_TTL_SECONDS = 604_800;
+const DEFAULT_BIDDER_TOKEN_TTL_SECONDS = 86_400;
 const DEFAULT_PORT = 3000;
 const MAX_PORT = 65_535;
 const DEFAULT_TRUST_PROXY_HOPS = 0;
@@ -91,6 +92,15 @@ export class EnvironmentVariables {
   STAFF_REFRESH_TOKEN_TTL_SECONDS: number = DEFAULT_STAFF_REFRESH_TTL_SECONDS;
 
   @IsString()
+  @MinLength(MIN_SECRET_LENGTH)
+  BIDDER_JWT_SECRET!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  BIDDER_TOKEN_TTL_SECONDS: number = DEFAULT_BIDDER_TOKEN_TTL_SECONDS;
+
+  @IsString()
   @MinLength(1)
   STORAGE_REGION!: string;
 
@@ -157,6 +167,12 @@ export function validateEnv(raw: Record<string, unknown>): EnvironmentVariables 
 
   if (env.STAFF_JWT_SECRET === env.JWT_SECRET) {
     new Logger('Env').error('staff_jwt_secret_must_differ_from_jwt_secret');
+
+    throw new Error('env_invalid');
+  }
+
+  if (env.BIDDER_JWT_SECRET === env.JWT_SECRET || env.BIDDER_JWT_SECRET === env.STAFF_JWT_SECRET) {
+    new Logger('Env').error('bidder_jwt_secret_must_differ');
 
     throw new Error('env_invalid');
   }

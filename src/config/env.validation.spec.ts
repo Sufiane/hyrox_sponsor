@@ -11,6 +11,7 @@ const storageEnv = {
   STORAGE_SECRET_ACCESS_KEY: 'secret',
 };
 const staffSecret = 't'.repeat(32);
+const bidderSecret = 'b'.repeat(32);
 const stripeEnv = {
   STRIPE_SECRET_KEY: 'sk_test_0123456789abcdef',
   STRIPE_PLATFORM_WEBHOOK_SECRET: 'whsec_platform0123456789',
@@ -21,6 +22,7 @@ const stripeEnv = {
 const validEnv = {
   JWT_SECRET: secret,
   STAFF_JWT_SECRET: staffSecret,
+  BIDDER_JWT_SECRET: bidderSecret,
   DATABASE_URL: databaseUrl,
   ...storageEnv,
   ...stripeEnv,
@@ -248,6 +250,56 @@ describe('validateEnv', () => {
       expect(() => validateEnv({ ...validEnv, STAFF_JWT_SECRET: secret })).toThrow();
 
       expect(error).toHaveBeenCalledWith(expect.stringContaining('staff_jwt_secret_must_differ_from_jwt_secret'));
+    });
+  });
+
+  describe('when BIDDER_JWT_SECRET is missing', () => {
+    it('throws env_invalid', () => {
+      const raw: Record<string, unknown> = { ...validEnv };
+
+      delete raw.BIDDER_JWT_SECRET;
+
+      expect(() => validateEnv(raw)).toThrow('env_invalid');
+    });
+  });
+
+  describe('when BIDDER_JWT_SECRET is shorter than 32 chars', () => {
+    it('throws env_invalid', () => {
+      expect(() => validateEnv({ ...validEnv, BIDDER_JWT_SECRET: 'short' })).toThrow('env_invalid');
+    });
+  });
+
+  describe.each([
+    ['JWT_SECRET', secret],
+    ['STAFF_JWT_SECRET', staffSecret],
+  ])('when BIDDER_JWT_SECRET equals %s', (_name, value) => {
+    it('throws env_invalid', () => {
+      expect(() => validateEnv({ ...validEnv, BIDDER_JWT_SECRET: value })).toThrow('env_invalid');
+    });
+
+    it('logs the reason without the value', () => {
+      expect(() => validateEnv({ ...validEnv, BIDDER_JWT_SECRET: value })).toThrow();
+
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('bidder_jwt_secret_must_differ'));
+      expect(JSON.stringify(error.mock.calls)).not.toContain(value);
+    });
+  });
+
+  describe('when BIDDER_TOKEN_TTL_SECONDS is unset', () => {
+    it('defaults to 86_400', () => {
+      expect(validateEnv(validEnv).BIDDER_TOKEN_TTL_SECONDS).toBe(86_400);
+    });
+  });
+
+  describe('when BIDDER_TOKEN_TTL_SECONDS is set', () => {
+    it('parses it', () => {
+      expect(validateEnv({ ...validEnv, BIDDER_TOKEN_TTL_SECONDS: '3600' }).BIDDER_TOKEN_TTL_SECONDS).toBe(3600);
+    });
+  });
+
+  describe('when BIDDER_TOKEN_TTL_SECONDS is 0', () => {
+    it('throws env_invalid', () => {
+      expect(() => validateEnv({ ...validEnv, BIDDER_TOKEN_TTL_SECONDS: '0' })).toThrow('env_invalid');
     });
   });
 
