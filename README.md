@@ -186,6 +186,32 @@ An in-process job (`AuctionSchedulerTask`, every 60 s) drives the auction lifecy
 - Known leak: `409 already_leading` reveals whether the typed email currently leads that auction; the throttle limits probing.
 - Spec: `docs/specs/2026-10-19-hyr-40-bid-placement-endpoint-design.md`. Manual concurrency checks: `docs/qa/hyr-40-bid-concurrency-checklist.md`.
 
+## Bidder payment setup (HYR-59)
+
+`POST /bidders/setup-intents` starts card setup for a guest bidder. Public and unauthenticated: the caller sends an unverified email. It finds or creates the bidder, lazily creates the Stripe customer, creates a setup intent and returns a signed bidder token.
+
+- Body: `{ "email": string }`. Unknown fields are rejected with `400 validation_failed`.
+- Header `X-Bidder-Token`: required only when the email already has a saved card. The token must belong to that bidder and carry the bidder's current token version; a token issued before the card was saved no longer works.
+- `201` response: `{ clientSecret, bidderToken, bidderTokenExpiresAt }` (ISO), with `Cache-Control: no-store`. It does not return the bidder id as a response field (the token's `sub` claim is the bidder id), nor the Stripe customer id or card data.
+- Errors, as `{ statusCode, message: <code>, error }`:
+
+| Status | Code |
+|---|---|
+| 400 | `validation_failed`, `email_invalid` |
+| 401 | `bidder_token_required` (missing, malformed, expired, wrong bidder, or stale version) |
+| 404 | `bidder_not_found` |
+| 409 | `bidder_stripe_customer_conflict` |
+| 422 | `stripe_request_rejected` |
+| 429 | throttled |
+| 502 | `stripe_unavailable`, `stripe_misconfigured` |
+
+- Throttle: 10 requests per minute per client IP, in-memory per instance, same caveats as bidding (`TRUST_PROXY_HOPS` must match the topology).
+- Env: `BIDDER_JWT_SECRET` (required, min 32 chars, must differ from `JWT_SECRET` and `STAFF_JWT_SECRET`) and `BIDDER_TOKEN_TTL_SECONDS` (default 86400).
+- Token version: `bidders.token_version` is bumped when a card is saved (HYR-60 writes the card columns and the bump in one UPDATE).
+- Enforcement of the token on bids is HYR-11; a lost token locks an email that has a card until HYR-62.
+- Known leak: `401 bidder_token_required` reveals that the email has a saved card; the throttle limits probing.
+- Spec: `docs/specs/2026-11-15-hyr-59-bidder-payment-setup-design.md`.
+
 ## Stripe (HYR-1)
 
 Stripe Connect platform setup (Express connected accounts, US). Dashboard and webhook configuration: [`docs/runbooks/stripe-connect-setup.md`](docs/runbooks/stripe-connect-setup.md). Spec: `docs/specs/2026-10-31-hyr-1-stripe-connect-setup-design.md`.
