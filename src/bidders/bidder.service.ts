@@ -8,6 +8,11 @@ import {
   type CreatePaymentSetupInput,
   type CreatePaymentSetupResult,
 } from './usecases/create-payment-setup/create-payment-setup.usecase';
+import {
+  SyncPaymentMethodUsecase,
+  type SyncPaymentMethodCommand,
+  type SyncPaymentMethodOutcome,
+} from './usecases/sync-payment-method/sync-payment-method.usecase';
 
 type BidderRecord = Awaited<ReturnType<BidderDb['upsertByEmail']>>;
 
@@ -18,10 +23,15 @@ export class BidderService {
   constructor(
     private readonly db: BidderDb,
     private readonly createPaymentSetupUsecase: CreatePaymentSetupUsecase,
+    private readonly syncPaymentMethodUsecase: SyncPaymentMethodUsecase,
   ) {}
 
   createPaymentSetup(input: CreatePaymentSetupInput): Promise<CreatePaymentSetupResult> {
     return this.createPaymentSetupUsecase.execute(input);
+  }
+
+  syncPaymentMethod(command: SyncPaymentMethodCommand): Promise<SyncPaymentMethodOutcome> {
+    return this.syncPaymentMethodUsecase.execute(command);
   }
 
   async getOrCreateByEmail(rawEmail: string): Promise<BidderRecord> {

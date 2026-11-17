@@ -4,10 +4,11 @@ import { BidderController } from './bidder.controller';
 import { BidderDb } from './bidder.db';
 import { BidderService } from './bidder.service';
 import { CreatePaymentSetupModule } from './usecases/create-payment-setup/create-payment-setup.module';
+import { SyncPaymentMethodModule } from './usecases/sync-payment-method/sync-payment-method.module';
 
 @Module({
   controllers: [BidderController],
-  imports: [BidderTokenModule, CreatePaymentSetupModule],
+  imports: [BidderTokenModule, CreatePaymentSetupModule, SyncPaymentMethodModule],
   providers: [BidderService, BidderDb],
   exports: [BidderService, BidderTokenModule],
 })

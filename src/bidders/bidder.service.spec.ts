@@ -4,28 +4,32 @@ import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { vi } from 'vitest';
 import { InvalidValueError } from '../common/domain-error';
 import type { BidderId } from '../common/ids';
-import type { StripeCustomerId } from '../common/stripe-ids';
+import type { StripeCustomerId, StripePaymentMethodId, StripeSetupIntentId } from '../common/stripe-ids';
 import { BidderService } from './bidder.service';
 import { BidderDb } from './bidder.db';
 import { CreatePaymentSetupUsecase } from './usecases/create-payment-setup/create-payment-setup.usecase';
+import { SyncPaymentMethodUsecase } from './usecases/sync-payment-method/sync-payment-method.usecase';
 
 describe('BidderService', () => {
   const bidderId = 'bidder-1' as BidderId;
   const customerId = 'cus_123' as StripeCustomerId;
   let db: DeepMockProxy<BidderDb>;
   let usecase: DeepMockProxy<CreatePaymentSetupUsecase>;
+  let syncUsecase: DeepMockProxy<SyncPaymentMethodUsecase>;
   let service: BidderService;
   let warn: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
     db = mockDeep<BidderDb>();
     usecase = mockDeep<CreatePaymentSetupUsecase>();
+    syncUsecase = mockDeep<SyncPaymentMethodUsecase>();
     warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const moduleRef = await Test.createTestingModule({
       providers: [
         BidderService,
         { provide: BidderDb, useValue: db },
         { provide: CreatePaymentSetupUsecase, useValue: usecase },
+        { provide: SyncPaymentMethodUsecase, useValue: syncUsecase },
       ],
     }).compile();
     service = moduleRef.get(BidderService);
@@ -33,6 +37,22 @@ describe('BidderService', () => {
 
   afterEach(() => {
     warn.mockRestore();
+  });
+
+  describe('syncPaymentMethod', () => {
+    describe('when called', () => {
+      it('delegates to the usecase', async () => {
+        const command = {
+          setupIntentId: 'seti_1' as StripeSetupIntentId,
+          customerId,
+          paymentMethodId: 'pm_1' as StripePaymentMethodId,
+        };
+        syncUsecase.execute.mockResolvedValue('saved');
+
+        expect(await service.syncPaymentMethod(command)).toBe('saved');
+        expect(syncUsecase.execute).toHaveBeenCalledWith(command);
+      });
+    });
   });
 
   describe('createPaymentSetup', () => {
