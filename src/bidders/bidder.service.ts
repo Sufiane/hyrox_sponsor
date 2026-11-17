@@ -1,7 +1,6 @@
-import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { normalizeEmail } from '../common/email';
 import type { BidderId } from '../common/ids';
-import type { StripeCustomerId } from '../common/stripe-ids';
 import { BidderDb } from './bidder.db';
 import {
   CreatePaymentSetupUsecase,
@@ -48,39 +47,9 @@ export class BidderService {
     return bidder;
   }
 
-  async attachStripeCustomer(id: BidderId, stripeCustomerId: StripeCustomerId): Promise<BidderRecord> {
-    const bidder = await this.getById(id);
-
-    if (bidder.stripeCustomerId === stripeCustomerId) {
-      return bidder;
-    }
-
-    if (bidder.stripeCustomerId != null) {
-      this.throwStripeConflict(id, bidder.stripeCustomerId, stripeCustomerId);
-    }
-
-    const updated = await this.db.setStripeCustomerIdIfUnset(id, stripeCustomerId);
-
-    if (!updated || updated.stripeCustomerId == null) {
-      this.throwNotFound(id);
-    }
-
-    if (updated.stripeCustomerId !== stripeCustomerId) {
-      this.throwStripeConflict(id, updated.stripeCustomerId, stripeCustomerId);
-    }
-
-    return updated;
-  }
-
   private throwNotFound(id: BidderId): never {
     this.logger.warn(`Bidder ${id} not found`);
 
     throw new NotFoundException('bidder_not_found');
-  }
-
-  private throwStripeConflict(id: BidderId, existing: string, requested: StripeCustomerId): never {
-    this.logger.warn(`Bidder ${id} already linked to Stripe customer ${existing}, refused ${requested}`);
-
-    throw new ConflictException('bidder_stripe_customer_conflict');
   }
 }
