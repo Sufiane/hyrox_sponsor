@@ -22,9 +22,12 @@ describe.skipIf(!reachable)('SyncPaymentMethodUsecase (postgres)', () => {
   let database: ThrowawayDatabase;
   let prisma: PrismaService;
   let usecase: SyncPaymentMethodUsecase;
+  const ownerByPaymentMethod = new Map<string, string>();
   let beforeGatewayReturns: () => Promise<void> = async (): Promise<void> => undefined;
 
   function commandFor(customer: string, paymentMethod: string): Parameters<SyncPaymentMethodUsecase['execute']>[0] {
+    ownerByPaymentMethod.set(paymentMethod, customer);
+
     return {
       setupIntentId: stripeSetupIntentId(`seti_${paymentMethod}`),
       customerId: stripeCustomerId(customer),
@@ -39,7 +42,14 @@ describe.skipIf(!reachable)('SyncPaymentMethodUsecase (postgres)', () => {
       retrievePaymentMethod: async (id: string) => {
         await beforeGatewayReturns();
 
-        return { id, brand: 'visa', last4: '4242', expMonth: 12, expYear: 2030 };
+        return {
+          id,
+          customerId: stripeCustomerId(ownerByPaymentMethod.get(id) ?? 'cus_unset'),
+          brand: 'visa',
+          last4: '4242',
+          expMonth: 12,
+          expYear: 2030,
+        };
       },
     } as unknown as StripeGateway;
 
