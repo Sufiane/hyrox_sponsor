@@ -259,6 +259,7 @@ describe('StripeAdapter', () => {
       mocks.paymentMethodsRetrieve.mockResolvedValue({
         id: 'pm_123',
         type: 'card',
+        customer: 'cus_123',
         card: { brand: 'visa', last4: '4242', exp_month: 8, exp_year: 2030 },
       });
     });
@@ -274,10 +275,62 @@ describe('StripeAdapter', () => {
 
       expect(snapshot).toEqual({
         id: stripePaymentMethodId('pm_123'),
+        customerId: stripeCustomerId('cus_123'),
         brand: 'visa',
         last4: '4242',
         expMonth: 8,
         expYear: 2030,
+      });
+    });
+
+    describe('when the payment method is not attached to a customer', () => {
+      beforeEach(() => {
+        mocks.paymentMethodsRetrieve.mockResolvedValue({
+          id: 'pm_123',
+          type: 'card',
+          customer: null,
+          card: { brand: 'visa', last4: '4242', exp_month: 8, exp_year: 2030 },
+        });
+      });
+
+      it('returns a null customer id', async () => {
+        expect((await adapter.retrievePaymentMethod(PAYMENT_METHOD)).customerId).toBeNull();
+      });
+    });
+
+    describe('when the customer comes back expanded', () => {
+      beforeEach(() => {
+        mocks.paymentMethodsRetrieve.mockResolvedValue({
+          id: 'pm_123',
+          type: 'card',
+          customer: { id: 'cus_456' },
+          card: { brand: 'visa', last4: '4242', exp_month: 8, exp_year: 2030 },
+        });
+      });
+
+      it('returns the branded customer id', async () => {
+        expect((await adapter.retrievePaymentMethod(PAYMENT_METHOD)).customerId).toBe('cus_456');
+      });
+    });
+
+    describe('when stripe returns a malformed customer id', () => {
+      beforeEach(() => {
+        mocks.paymentMethodsRetrieve.mockResolvedValue({
+          id: 'pm_123',
+          type: 'card',
+          customer: 'xyz_1',
+          card: { brand: 'visa', last4: '4242', exp_month: 8, exp_year: 2030 },
+        });
+      });
+
+      it('maps to stripe_unavailable', async () => {
+        await expect(adapter.retrievePaymentMethod(PAYMENT_METHOD)).rejects.toBeInstanceOf(StripeUnavailableError);
+      });
+
+      it('logs the detail', async () => {
+        await adapter.retrievePaymentMethod(PAYMENT_METHOD).catch(() => undefined);
+
+        expect(logError).toHaveBeenCalledWith(expect.stringContaining('malformed customer id'));
       });
     });
 

@@ -48,6 +48,7 @@ export type SetupIntentHandle = {
 
 export type PaymentMethodSnapshot = {
   id: StripePaymentMethodId;
+  customerId: StripeCustomerId | null;
   brand: string;
   last4: string;
   expMonth: number;

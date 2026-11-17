@@ -143,8 +143,11 @@ export class StripeAdapter implements StripeGateway {
       throw new StripeUnavailableError();
     }
 
+    const rawCustomerId = typeof method.customer === 'string' ? method.customer : (method.customer?.id ?? null);
+
     return {
       id: this.brandReturnedId('payment method', method.id, stripePaymentMethodId),
+      customerId: rawCustomerId == null ? null : this.brandReturnedId('customer', rawCustomerId, stripeCustomerId),
       brand: method.card.brand,
       last4: method.card.last4,
       expMonth: method.card.exp_month,

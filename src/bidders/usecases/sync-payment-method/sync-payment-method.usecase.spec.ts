@@ -29,6 +29,7 @@ describe('SyncPaymentMethodUsecase', () => {
     gateway = mockDeep<StripeGateway>();
     gateway.retrievePaymentMethod.mockResolvedValue({
       id: command.paymentMethodId,
+      customerId: command.customerId,
       brand: 'visa',
       last4: '4242',
       expMonth: 12,
@@ -123,10 +124,38 @@ describe('SyncPaymentMethodUsecase', () => {
       });
     });
 
+    describe.each([
+      ['another customer', 'cus_other' as StripeCustomerId],
+      ['no customer', null],
+    ])('when the payment method belongs to %s', (_label, owner) => {
+      beforeEach(() => {
+        gateway.retrievePaymentMethod.mockResolvedValue({
+          id: command.paymentMethodId,
+          customerId: owner,
+          brand: 'visa',
+          last4: '4242',
+          expMonth: 12,
+          expYear: 2030,
+        });
+      });
+
+      it('reports customer_mismatch and writes nothing', async () => {
+        expect(await usecase.execute(command)).toBe('customer_mismatch');
+        expect(db.saveFirstCard).not.toHaveBeenCalled();
+      });
+
+      it('logs an error', async () => {
+        await usecase.execute(command);
+
+        expect(Logger.prototype.error).toHaveBeenCalledWith(expect.stringContaining('pm_1'));
+      });
+    });
+
     describe('when last4 is not four digits', () => {
       beforeEach(() => {
         gateway.retrievePaymentMethod.mockResolvedValue({
           id: command.paymentMethodId,
+          customerId: command.customerId,
           brand: 'visa',
           last4: '42',
           expMonth: 12,
@@ -144,6 +173,7 @@ describe('SyncPaymentMethodUsecase', () => {
       beforeEach(() => {
         gateway.retrievePaymentMethod.mockResolvedValue({
           id: command.paymentMethodId,
+          customerId: command.customerId,
           brand: ' ',
           last4: '4242',
           expMonth: 12,

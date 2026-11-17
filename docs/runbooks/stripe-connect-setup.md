@@ -37,10 +37,13 @@ Create both in Workbench > Webhooks (`dashboard.stripe.com/workbench/webhooks`),
 
 | Endpoint | URL | Events from | Events (initial) | Env var for secret |
 |---|---|---|---|---|
-| Platform | `https://<api-host>/stripe/webhooks/platform` | Your account | none required yet (HYR-11/14 add PaymentIntent events) | `STRIPE_PLATFORM_WEBHOOK_SECRET` |
+| Platform | `https://<api-host>/stripe/webhooks/platform` | Your account | `setup_intent.succeeded` (HYR-60; PaymentIntent events come with HYR-11/14) | `STRIPE_PLATFORM_WEBHOOK_SECRET` |
 | Connect | `https://<api-host>/stripe/webhooks/connect` | Connected accounts | `account.updated` | `STRIPE_CONNECT_WEBHOOK_SECRET` |
 
 - `account.updated` for connected accounts is delivered to the "Connected accounts" scope. [verified]
+- Platform endpoint API version: set it to the adapter's pinned version (`2026-10-28.endive`, `STRIPE_API_VERSION` in `src/stripe/stripe.adapter.ts`) so the payload shape matches what the handler parses.
+- Subscribe `setup_intent.succeeded` on the platform endpoint, in test and live mode, only after the HYR-60 code is deployed. Events delivered earlier are acknowledged with no handler and are not replayed.
+- The handler ignores Connect-channel deliveries and setup intents that are not card-only.
 - Each endpoint has its own `whsec_...` signing secret (reveal it on the endpoint page). The two values must differ or the app refuses to boot. [signing-secret location unverified]
 - Webhook URLs must be HTTPS and publicly reachable. Routes ship in slice D (HYR-46); create the endpoints once that is deployed, or earlier with placeholder URLs and update later.
 
@@ -79,6 +82,8 @@ Trigger test events:
 stripe trigger account.updated --stripe-account <acct_...>
 ```
 
+`stripe trigger setup_intent.succeeded` creates a foreign customer, so the app logs an unknown customer warning and writes nothing. To exercise the real path, confirm a setup intent created through `POST /bidders/setup-intents` (Stripe test dashboard or Stripe.js with a test card).
+
 Caveat [unverified]: `stripe listen` prints a `whsec_...` for the session, and both sessions may print the same secret. The app requires the two secrets to differ, so for local use set the second to any other valid-looking `whsec_...` value only if you are not exercising that channel, or run one channel at a time. Confirm the behavior when slice D is built and update this section.
 
 ## 8. Live-mode review note
@@ -90,4 +95,5 @@ Live-mode Connect needs Stripe to approve the platform before real athletes can 
 - [ ] Test-mode Connect enabled, platform profile and branding set.
 - [ ] Both webhook endpoints created in test mode, secrets copied.
 - [ ] Five env vars set in every non-production environment, and in production, before HYR-44 merges.
+- [ ] `setup_intent.succeeded` subscribed on the platform endpoint, test and live, after the HYR-60 deploy.
 - [ ] Live-mode review started (does not block code merges).

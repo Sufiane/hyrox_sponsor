@@ -12,7 +12,7 @@ export type SyncPaymentMethodCommand = {
 };
 
 export type SyncPaymentMethodOutcome =
-  'saved' | 'already_saved' | 'ignored_existing_card' | 'unknown_customer' | 'invalid_card_data';
+  'saved' | 'already_saved' | 'ignored_existing_card' | 'unknown_customer' | 'invalid_card_data' | 'customer_mismatch';
 
 @Injectable()
 export class SyncPaymentMethodUsecase {
@@ -37,6 +37,14 @@ export class SyncPaymentMethodUsecase {
     }
 
     const card = await this.gateway.retrievePaymentMethod(command.paymentMethodId);
+
+    if (card.customerId !== command.customerId) {
+      this.logger.error(
+        `Payment method ${command.paymentMethodId} belongs to ${card.customerId ?? 'no customer'}, not ${command.customerId} (setup intent ${command.setupIntentId}), not saved`,
+      );
+
+      return 'customer_mismatch';
+    }
 
     if (!LAST4_PATTERN.test(card.last4) || card.brand.trim() === '') {
       this.logger.error(`Payment method ${command.paymentMethodId} has unusable card data, not saved`);

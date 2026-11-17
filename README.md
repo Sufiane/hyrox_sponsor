@@ -212,6 +212,27 @@ An in-process job (`AuctionSchedulerTask`, every 60 s) drives the auction lifecy
 - Known leak: `401 bidder_token_required` reveals that the email has a saved card; the throttle limits probing.
 - Spec: `docs/specs/2026-11-15-hyr-59-bidder-payment-setup-design.md`.
 
+## Bidder card sync (HYR-60)
+
+Platform webhook `setup_intent.succeeded` saves the bidder's card. Connect-channel deliveries are ignored, as are setup intents that are not card-only or have no plain string `customer` and `payment_method`. Stripe CLI and subscription steps: [`docs/runbooks/stripe-connect-setup.md`](docs/runbooks/stripe-connect-setup.md).
+
+- The bidder is resolved by Stripe customer id. The payment method is retrieved from Stripe, and its owning customer must match the event's customer, otherwise nothing is written and an error is logged.
+- First card wins: the write sets `default_payment_method_id`, `card_brand`, `card_last4` and bumps `token_version` in one UPDATE guarded by `default_payment_method_id IS NULL`. The DB trigger from the previous PR (#40) is a backstop that enforces the bump for any other writer. A second card is ignored and logged.
+- A malformed customer id returned by Stripe maps to `stripe_unavailable` and is retried.
+- Malformed ids are acknowledged and logged at error. Only a failure inside the sync (for example Stripe unavailable) fails the webhook, so the claim is released and Stripe retries.
+
+| Outcome | Meaning |
+|---|---|
+| `saved` | first card stored, token version bumped |
+| `already_saved` | same payment method already stored (replay) |
+| `ignored_existing_card` | bidder already has a different card |
+| `unknown_customer` | no bidder has that customer id |
+| `invalid_card_data` | Stripe returned unusable brand or last4 |
+| `customer_mismatch` | payment method does not belong to the event's customer |
+
+- Follow-ups: replace card, `payment_method.detached`.
+- Spec: `docs/specs/2026-11-16-hyr-60-setup-intent-succeeded-sync-design.md`.
+
 ## Stripe (HYR-1)
 
 Stripe Connect platform setup (Express connected accounts, US). Dashboard and webhook configuration: [`docs/runbooks/stripe-connect-setup.md`](docs/runbooks/stripe-connect-setup.md). Spec: `docs/specs/2026-10-31-hyr-1-stripe-connect-setup-design.md`.
