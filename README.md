@@ -307,3 +307,8 @@ The repo is an npm workspace: the backend stays at the root, with two packages b
 - `onselect(zone: BodyZone)` callback.
 
 `LEFT_*` is the athlete's own left (viewer's right on the front view). The artwork is a placeholder: replace the path strings in `shared/src/body-map-geometry.ts` to swap it.
+
+## Guest card capture (HYR-61)
+
+- `web/src/lib/bidder/GuestCardCapture.svelte` collects a guest's email and saves a card via Stripe Elements (setup intent from `POST /bidders/setup-intents`). Open `/dev/card` for the harness; it does not gate bidding.
+- Set `VITE_STRIPE_PUBLISHABLE_KEY` (Stripe publishable key, `pk_test_...`) for the web app. Without it the form shows "Card payments are not configured."

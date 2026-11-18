@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@hyrox-sponsor/shared": "*",
+    "@stripe/stripe-js": "10.3.0",
     "cookie": "2.0.1"
   },
   "devDependencies": {
