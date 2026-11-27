@@ -313,10 +313,12 @@ model EscrowTransaction {
   stripePaymentIntentId String                @map("stripe_payment_intent_id")
   type                  EscrowTransactionType
   amountCents           Int                   @map("amount_cents")
+  captureBefore         DateTime?             @map("capture_before") @db.Timestamptz(3)
   createdAt             DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
 
   bid Bid @relation(fields: [bidId], references: [id])
 
+  @@unique([stripePaymentIntentId, type])
   @@index([bidId, type])
   @@map("escrow_transactions")
 }

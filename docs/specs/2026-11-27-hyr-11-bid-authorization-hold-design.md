@@ -156,7 +156,7 @@ abstract cancelHold(paymentIntentId: StripePaymentIntentId): Promise<void>;
 
 ### 4.5 Contract for HYR-12 (close)
 
-- Winning bid's hold: latest `escrow_transactions` row for the `WON` bid with `type = AUTHORIZED`. Capture if `capture_before` is null or in the future; on capture failure or past `capture_before`, create a fresh `off_session` charge on `bidders.default_payment_method_id`. Write `CAPTURED` (or `FAILED`) using the `(pi, type)` unique index for idempotency.
+- Winning bid's hold: latest `escrow_transactions` row for the `WON` bid with `type = AUTHORIZED`. Capture if `capture_before` is null or in the future; on capture failure or past `capture_before`, create a fresh `off_session` charge on `bidders.default_payment_method_id`. Write `CAPTURED` (or `FAILED`) using the `(pi, type)` unique index for idempotency. The index covers every row type: every writer (HYR-12, the `payment_intent.*` webhook, refunds) must use `skipDuplicates` or handle P2002, and at most one `REFUNDED` row exists per PaymentIntent (no multiple partial refunds without a schema change).
 - Any `LOST` bid whose latest row is still `AUTHORIZED`: call `EscrowTransactionService.releaseHold`.
 - Decline at close outcome (NO_SALE vs runner-up) is HYR-12's product decision.
 
