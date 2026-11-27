@@ -3,10 +3,12 @@ import type { ConfigService } from '@nestjs/config';
 import { type MockInstance } from 'vitest';
 import { normalizeEmail } from '../common/email';
 import { InvalidValueError } from '../common/domain-error';
-import { athleteId, bidderId } from '../common/ids';
+import { athleteId, auctionId, bidderId } from '../common/ids';
+import { cents } from '../common/money';
 import {
   stripeConnectAccountId,
   stripeCustomerId,
+  stripePaymentIntentId,
   stripePaymentMethodId,
   stripeSetupIntentId,
 } from '../common/stripe-ids';
@@ -22,6 +24,9 @@ const mocks = vi.hoisted(() => ({
   customersCreate: vi.fn(),
   setupIntentsCreate: vi.fn(),
   paymentMethodsRetrieve: vi.fn(),
+  paymentIntentsCreate: vi.fn(),
+  paymentIntentsCancel: vi.fn(),
+  paymentIntentsRetrieve: vi.fn(),
   constructEvent: vi.fn(),
 }));
 
@@ -32,6 +37,11 @@ vi.mock('stripe', () => ({
     customers = { create: mocks.customersCreate };
     setupIntents = { create: mocks.setupIntentsCreate };
     paymentMethods = { retrieve: mocks.paymentMethodsRetrieve };
+    paymentIntents = {
+      create: mocks.paymentIntentsCreate,
+      cancel: mocks.paymentIntentsCancel,
+      retrieve: mocks.paymentIntentsRetrieve,
+    };
     webhooks = { constructEvent: mocks.constructEvent };
 
     constructor(...args: unknown[]) {
@@ -67,8 +77,21 @@ function rawAccount(overrides: Record<string, unknown> = {}): Record<string, unk
   };
 }
 
+function capturable(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 'pi_1',
+    status: 'requires_capture',
+    latest_charge: { payment_method_details: { card: { capture_before: 1_764_000_000 } } },
+    ...overrides,
+  };
+}
+
 function stripeFailure(type: string, message = 'raw stripe message'): Error {
   return Object.assign(new Error(message), { type, requestId: 'req_1' });
+}
+
+function stripeFailureWith(type: string, fields: Record<string, string>): Error {
+  return Object.assign(stripeFailure(type), fields);
 }
 
 describe('StripeAdapter', () => {
@@ -523,6 +546,244 @@ describe('StripeAdapter', () => {
 
       it('throws a bad-request domain error', () => {
         expect(() => adapter.constructWebhookEvent(body, 'bad', 'platform')).toThrow(InvalidValueError);
+      });
+    });
+  });
+
+  describe('when authorizing a hold', () => {
+    const input = {
+      customerId: stripeCustomerId('cus_1'),
+      paymentMethodId: stripePaymentMethodId('pm_1'),
+      amountCents: cents(5_500),
+      auctionId: auctionId('auction-1'),
+      bidderId: BIDDER,
+      attemptId: 'attempt-1',
+    };
+
+    describe('when the card authorizes', () => {
+      beforeEach(() => {
+        mocks.paymentIntentsCreate.mockResolvedValue(capturable());
+      });
+
+      it('creates a confirmed off-session manual-capture card intent', async () => {
+        await adapter.authorizeHold(input);
+
+        expect(mocks.paymentIntentsCreate).toHaveBeenCalledWith(
+          {
+            amount: 5_500,
+            currency: 'usd',
+            customer: 'cus_1',
+            payment_method: 'pm_1',
+            allowed_payment_method_types: ['card'],
+            capture_method: 'manual',
+            confirm: true,
+            off_session: true,
+            expand: ['latest_charge'],
+            metadata: { auctionId: 'auction-1', bidderId: 'bidder-1', attemptId: 'attempt-1' },
+          },
+          { idempotencyKey: 'bid-hold:attempt-1' },
+        );
+      });
+
+      it('returns the branded intent id and capture deadline', async () => {
+        await expect(adapter.authorizeHold(input)).resolves.toEqual({
+          outcome: 'authorized',
+          paymentIntentId: stripePaymentIntentId('pi_1'),
+          captureBefore: new Date(1_764_000_000_000),
+        });
+      });
+    });
+
+    describe('when the charge has no capture deadline', () => {
+      beforeEach(() => {
+        mocks.paymentIntentsCreate.mockResolvedValue(capturable({ latest_charge: 'ch_1' }));
+      });
+
+      it('returns a null capture deadline', async () => {
+        await expect(adapter.authorizeHold(input)).resolves.toMatchObject({ captureBefore: null });
+      });
+    });
+
+    describe('when the expanded charge has no capture_before', () => {
+      beforeEach(() => {
+        mocks.paymentIntentsCreate.mockResolvedValue(
+          capturable({ latest_charge: { payment_method_details: { card: {} } } }),
+        );
+      });
+
+      it('returns a null capture deadline', async () => {
+        await expect(adapter.authorizeHold(input)).resolves.toMatchObject({ captureBefore: null });
+      });
+    });
+
+    describe('when the intent needs customer action', () => {
+      beforeEach(() => {
+        mocks.paymentIntentsCreate.mockResolvedValue(capturable({ status: 'requires_action' }));
+        mocks.paymentIntentsCancel.mockResolvedValue({ id: 'pi_1', status: 'canceled' });
+      });
+
+      it('cancels the intent', async () => {
+        await adapter.authorizeHold(input);
+
+        expect(mocks.paymentIntentsCancel).toHaveBeenCalledWith('pi_1');
+      });
+
+      it('reports a decline with the status as reason', async () => {
+        await expect(adapter.authorizeHold(input)).resolves.toEqual({
+          outcome: 'declined',
+          reason: 'requires_action',
+        });
+      });
+
+      describe('when the cancel fails', () => {
+        beforeEach(() => {
+          mocks.paymentIntentsCancel.mockRejectedValue(stripeFailure('StripeConnectionError'));
+        });
+
+        it('still reports a decline', async () => {
+          await expect(adapter.authorizeHold(input)).resolves.toEqual({
+            outcome: 'declined',
+            reason: 'requires_action',
+          });
+        });
+
+        it('logs the intent id at error level', async () => {
+          await adapter.authorizeHold(input);
+
+          expect(logError).toHaveBeenCalledWith(expect.stringContaining('pi_1'));
+        });
+      });
+    });
+
+    describe('when the card is declined', () => {
+      beforeEach(() => {
+        mocks.paymentIntentsCreate.mockRejectedValue(
+          stripeFailureWith('StripeCardError', { code: 'card_declined', decline_code: 'insufficient_funds' }),
+        );
+      });
+
+      it('reports a decline with the decline code as reason', async () => {
+        await expect(adapter.authorizeHold(input)).resolves.toEqual({
+          outcome: 'declined',
+          reason: 'insufficient_funds',
+        });
+      });
+    });
+
+    describe('when the payment method is rejected', () => {
+      beforeEach(() => {
+        mocks.paymentIntentsCreate.mockRejectedValue(
+          stripeFailureWith('StripeInvalidRequestError', { code: 'resource_missing', param: 'payment_method' }),
+        );
+      });
+
+      it('reports the payment method as unusable', async () => {
+        await expect(adapter.authorizeHold(input)).resolves.toEqual({
+          outcome: 'payment_method_unusable',
+          reason: 'resource_missing',
+        });
+      });
+    });
+
+    describe('when the customer is missing', () => {
+      beforeEach(() => {
+        mocks.paymentIntentsCreate.mockRejectedValue(
+          stripeFailureWith('StripeInvalidRequestError', { code: 'resource_missing', param: 'customer' }),
+        );
+      });
+
+      it('throws stripe_request_rejected', async () => {
+        await expect(adapter.authorizeHold(input)).rejects.toBeInstanceOf(StripeRejectedError);
+      });
+    });
+
+    describe('when another invalid request error occurs', () => {
+      beforeEach(() => {
+        mocks.paymentIntentsCreate.mockRejectedValue(
+          stripeFailureWith('StripeInvalidRequestError', { code: 'parameter_invalid_integer', param: 'amount' }),
+        );
+      });
+
+      it('throws stripe_request_rejected', async () => {
+        await expect(adapter.authorizeHold(input)).rejects.toBeInstanceOf(StripeRejectedError);
+      });
+    });
+
+    describe('when the api key is wrong', () => {
+      beforeEach(() => {
+        mocks.paymentIntentsCreate.mockRejectedValue(stripeFailure('StripeAuthenticationError'));
+      });
+
+      it('throws stripe_misconfigured', async () => {
+        await expect(adapter.authorizeHold(input)).rejects.toBeInstanceOf(StripeMisconfiguredError);
+      });
+    });
+
+    describe('when stripe returns a malformed intent id', () => {
+      beforeEach(() => {
+        mocks.paymentIntentsCreate.mockResolvedValue(capturable({ id: 'ch_wrong' }));
+      });
+
+      it('throws stripe_unavailable', async () => {
+        await expect(adapter.authorizeHold(input)).rejects.toBeInstanceOf(StripeUnavailableError);
+      });
+    });
+  });
+
+  describe('when canceling a hold', () => {
+    const intentId = stripePaymentIntentId('pi_1');
+
+    describe('when stripe cancels it', () => {
+      beforeEach(() => {
+        mocks.paymentIntentsCancel.mockResolvedValue({ id: 'pi_1', status: 'canceled' });
+      });
+
+      it('resolves', async () => {
+        await expect(adapter.cancelHold(intentId)).resolves.toBeUndefined();
+        expect(mocks.paymentIntentsCancel).toHaveBeenCalledWith('pi_1');
+      });
+    });
+
+    describe('when the intent is already canceled', () => {
+      beforeEach(() => {
+        mocks.paymentIntentsCancel.mockRejectedValue(
+          stripeFailureWith('StripeInvalidRequestError', { code: 'payment_intent_unexpected_state' }),
+        );
+        mocks.paymentIntentsRetrieve.mockResolvedValue({ id: 'pi_1', status: 'canceled' });
+      });
+
+      it('resolves', async () => {
+        await expect(adapter.cancelHold(intentId)).resolves.toBeUndefined();
+      });
+    });
+
+    describe('when the intent was captured', () => {
+      beforeEach(() => {
+        mocks.paymentIntentsCancel.mockRejectedValue(
+          stripeFailureWith('StripeInvalidRequestError', { code: 'payment_intent_unexpected_state' }),
+        );
+        mocks.paymentIntentsRetrieve.mockResolvedValue({ id: 'pi_1', status: 'succeeded' });
+      });
+
+      it('throws stripe_unavailable', async () => {
+        await expect(adapter.cancelHold(intentId)).rejects.toBeInstanceOf(StripeUnavailableError);
+      });
+
+      it('logs the status', async () => {
+        await adapter.cancelHold(intentId).catch(() => undefined);
+
+        expect(logError).toHaveBeenCalledWith(expect.stringContaining('succeeded'));
+      });
+    });
+
+    describe('when stripe is down', () => {
+      beforeEach(() => {
+        mocks.paymentIntentsCancel.mockRejectedValue(stripeFailure('StripeConnectionError'));
+      });
+
+      it('throws stripe_unavailable without retrieving', async () => {
+        await expect(adapter.cancelHold(intentId)).rejects.toBeInstanceOf(StripeUnavailableError);
+        expect(mocks.paymentIntentsRetrieve).not.toHaveBeenCalled();
       });
     });
   });

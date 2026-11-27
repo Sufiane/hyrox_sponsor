@@ -1,23 +1,27 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
-import { InvalidValueError } from '../common/domain-error';
+import { InvalidValueError, type DomainError } from '../common/domain-error';
 import {
   stripeConnectAccountId,
   stripeCustomerId,
+  stripePaymentIntentId,
   stripePaymentMethodId,
   stripeSetupIntentId,
   type StripeConnectAccountId,
   type StripeCustomerId,
+  type StripePaymentIntentId,
   type StripePaymentMethodId,
 } from '../common/stripe-ids';
 import type { EnvironmentVariables } from '../config/env.validation';
 import { StripeMisconfiguredError, StripeRejectedError, StripeUnavailableError } from '../common/stripe-errors';
 import {
   StripeGateway,
+  type AuthorizeHoldInput,
   type ConnectAccountSnapshot,
   type CreateCustomerInput,
   type CreateExpressAccountInput,
+  type HoldAuthorization,
   type OnboardingLink,
   type PaymentMethodSnapshot,
   type SetupIntentHandle,
@@ -37,6 +41,8 @@ const REJECTED_ERROR_TYPES: ReadonlySet<string> = new Set([
   'StripeInvalidRequestError',
   'StripeIdempotencyError',
 ]);
+const HOLD_CURRENCY = 'usd';
+const UNUSABLE_PAYMENT_METHOD_PARAMS: ReadonlySet<string> = new Set(['payment_method']);
 
 function secondsToDate(epochSeconds: number): Date {
   return new Date(epochSeconds * MILLIS_PER_SECOND);
@@ -155,6 +161,55 @@ export class StripeAdapter implements StripeGateway {
     };
   }
 
+  async authorizeHold(input: AuthorizeHoldInput): Promise<HoldAuthorization> {
+    let intent: Stripe.PaymentIntent;
+
+    try {
+      intent = await this.client.paymentIntents.create(
+        {
+          amount: input.amountCents,
+          currency: HOLD_CURRENCY,
+          customer: input.customerId,
+          payment_method: input.paymentMethodId,
+          allowed_payment_method_types: ['card'],
+          capture_method: 'manual',
+          confirm: true,
+          off_session: true,
+          expand: ['latest_charge'],
+          metadata: { auctionId: input.auctionId, bidderId: input.bidderId, attemptId: input.attemptId },
+        },
+        { idempotencyKey: `bid-hold:${input.attemptId}` },
+      );
+    } catch (error) {
+      return this.holdRefusal(error);
+    }
+
+    return this.toHoldAuthorization(intent);
+  }
+
+  async cancelHold(paymentIntentId: StripePaymentIntentId): Promise<void> {
+    const failure = await this.client.paymentIntents.cancel(paymentIntentId).then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+    if (failure === null) {
+      return;
+    }
+
+    if (this.errorField(failure, 'code') !== 'payment_intent_unexpected_state') {
+      throw this.toDomainError('cancelHold', failure);
+    }
+
+    const intent = await this.call('retrievePaymentIntent', () => this.client.paymentIntents.retrieve(paymentIntentId));
+
+    if (intent.status !== 'canceled') {
+      this.logger.error(`Stripe hold ${paymentIntentId} cannot be canceled from status ${intent.status}`);
+
+      throw new StripeUnavailableError();
+    }
+  }
+
   constructWebhookEvent(rawBody: Buffer, signature: string, channel: WebhookChannel): StripeEvent {
     let event: Stripe.Event;
 
@@ -202,22 +257,88 @@ export class StripeAdapter implements StripeGateway {
     }
   }
 
+  private async toHoldAuthorization(intent: Stripe.PaymentIntent): Promise<HoldAuthorization> {
+    const paymentIntentId = this.brandReturnedId('payment intent', intent.id, stripePaymentIntentId);
+
+    if (intent.status !== 'requires_capture') {
+      this.logger.warn(`Stripe hold ${paymentIntentId} ended in status ${intent.status}, canceling it`);
+      await this.cancelHold(paymentIntentId).catch((error: unknown) => {
+        this.logger.error(
+          `Stripe hold ${paymentIntentId} could not be canceled after a decline: ${this.describe(error)}`,
+        );
+      });
+
+      return { outcome: 'declined', reason: intent.status };
+    }
+
+    return { outcome: 'authorized', paymentIntentId, captureBefore: this.captureBefore(intent) };
+  }
+
+  private captureBefore(intent: Stripe.PaymentIntent): Date | null {
+    const charge = intent.latest_charge;
+
+    if (charge == null || typeof charge === 'string') {
+      return null;
+    }
+
+    const seconds = charge.payment_method_details?.card?.capture_before;
+
+    return seconds == null ? null : secondsToDate(seconds);
+  }
+
+  private holdRefusal(error: unknown): HoldAuthorization {
+    const type = this.errorType(error);
+    const code = this.errorField(error, 'code');
+
+    if (type === 'StripeCardError') {
+      const reason = this.errorField(error, 'decline_code') ?? code ?? 'card_error';
+
+      this.logger.warn(`Stripe declined a hold (${reason}): ${this.describe(error)}`);
+
+      return { outcome: 'declined', reason };
+    }
+
+    const param = this.errorField(error, 'param');
+
+    if (type === 'StripeInvalidRequestError' && param != null && UNUSABLE_PAYMENT_METHOD_PARAMS.has(param)) {
+      this.logger.warn(`Stripe refused the hold payment method (${code}, ${param}): ${this.describe(error)}`);
+
+      return { outcome: 'payment_method_unusable', reason: code ?? 'invalid_payment_method' };
+    }
+
+    throw this.toDomainError('authorizeHold', error);
+  }
+
   private async call<T>(operation: string, run: () => Promise<T>): Promise<T> {
     try {
       return await run();
     } catch (error) {
-      this.logger.error(`Stripe ${operation} failed: ${this.describe(error)}`);
-
-      if (MISCONFIGURED_ERROR_TYPES.has(this.errorType(error))) {
-        throw new StripeMisconfiguredError();
-      }
-
-      if (REJECTED_ERROR_TYPES.has(this.errorType(error))) {
-        throw new StripeRejectedError();
-      }
-
-      throw new StripeUnavailableError();
+      throw this.toDomainError(operation, error);
     }
+  }
+
+  private toDomainError(operation: string, error: unknown): DomainError {
+    this.logger.error(`Stripe ${operation} failed: ${this.describe(error)}`);
+
+    if (MISCONFIGURED_ERROR_TYPES.has(this.errorType(error))) {
+      return new StripeMisconfiguredError();
+    }
+
+    if (REJECTED_ERROR_TYPES.has(this.errorType(error))) {
+      return new StripeRejectedError();
+    }
+
+    return new StripeUnavailableError();
+  }
+
+  private errorField(error: unknown, field: 'code' | 'param' | 'decline_code'): string | null {
+    if (!(error instanceof Error) || !(field in error)) {
+      return null;
+    }
+
+    const value: unknown = (error as unknown as Record<string, unknown>)[field];
+
+    return typeof value === 'string' ? value : null;
   }
 
   private errorType(error: unknown): string {
