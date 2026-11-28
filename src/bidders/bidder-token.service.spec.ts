@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { type MockInstance } from 'vitest';
+import { UnauthorizedError } from '../common/domain-error';
 import type { BidderId } from '../common/ids';
 import type { BidderTokenConfig } from './bidder-token.config';
 import { BidderTokenService } from './bidder-token.service';
@@ -130,7 +131,7 @@ describe('BidderTokenService', () => {
     });
 
     it('rejects undefined', async () => {
-      await expect(service.verify(undefined)).rejects.toThrow('bidder_token_required');
+      await expect(service.verify(undefined)).rejects.toThrow(new UnauthorizedError('bidder_token_required'));
     });
 
     it('rejects an empty string', async () => {
@@ -146,6 +147,36 @@ describe('BidderTokenService', () => {
 
       expect(warn).toHaveBeenCalledTimes(1);
       expect(JSON.stringify(warn.mock.calls)).not.toContain(token);
+    });
+  });
+
+  describe('assertCurrent', () => {
+    describe('when the token matches the bidder and version', () => {
+      it('passes', () => {
+        expect(() => service.assertCurrent({ bidderId: id, tokenVersion: 2 }, { id, tokenVersion: 2 })).not.toThrow();
+        expect(warn).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('when the token belongs to another bidder', () => {
+      it('rejects with bidder_token_required and logs both ids', () => {
+        expect(() =>
+          service.assertCurrent({ bidderId: 'bidder-2' as BidderId, tokenVersion: 2 }, { id, tokenVersion: 2 }),
+        ).toThrow(new UnauthorizedError('bidder_token_required'));
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('bidder-2'));
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('bidder-1'));
+      });
+    });
+
+    describe('when the token version is stale', () => {
+      it('rejects with bidder_token_required and logs both versions', () => {
+        expect(() => service.assertCurrent({ bidderId: id, tokenVersion: 1 }, { id, tokenVersion: 2 })).toThrow(
+          new UnauthorizedError('bidder_token_required'),
+        );
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringMatching(/version 1 is stale for bidder bidder-1 \(current 2\)/),
+        );
+      });
     });
   });
 });

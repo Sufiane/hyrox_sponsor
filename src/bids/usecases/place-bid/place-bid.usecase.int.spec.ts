@@ -1,10 +1,11 @@
+import { JwtService } from '@nestjs/jwt';
 import type { Prisma } from '@prisma/client';
-import { ConflictError, InvalidValueError } from '../../../common/domain-error';
-import { normalizeEmail } from '../../../common/email';
-import type { AuctionId } from '../../../common/ids';
+import { BidderTokenService } from '../../../bidders/bidder-token.service';
+import { ConflictError, UnauthorizedError } from '../../../common/domain-error';
+import { bidderId, type AuctionId } from '../../../common/ids';
 import { cents } from '../../../common/money';
 import type { PrismaService } from '../../../prisma/prisma.service';
-import { createAthlete, createAuction, createRaceEntry } from '../../../testing/fixture-utilities';
+import { createAthlete, createAuction, createBidder, createRaceEntry } from '../../../testing/fixture-utilities';
 import {
   createThrowawayDatabase,
   DEFAULT_ADMIN_DATABASE_URL,
@@ -18,6 +19,7 @@ import { PlaceBidUsecase, type PlaceBidInput, type PlaceBidResult } from './plac
 import { PlaceBidUsecaseDb } from './place-bid.usecase.db';
 
 const adminUrl = process.env.TEST_ADMIN_DATABASE_URL ?? DEFAULT_ADMIN_DATABASE_URL;
+const SECRET = 'place-bid-int-secret-at-least-32-characters';
 const reachable = requireReachableInCi(await isPostgresReachable(adminUrl), process.env);
 
 function sleep(milliseconds: number): Promise<void> {
@@ -36,12 +38,14 @@ describe.skipIf(!reachable)('PlaceBidUsecase (postgres)', () => {
   let database: ThrowawayDatabase;
   let prisma: PrismaService;
   let usecase: PlaceBidUsecase;
+  let tokens: BidderTokenService;
   let closeDb: CloseAuctionsUsecaseDb;
 
   beforeAll(async () => {
     database = await createThrowawayDatabase(adminUrl);
     prisma = database.prisma;
-    usecase = new PlaceBidUsecase(new PlaceBidUsecaseDb(prisma));
+    tokens = new BidderTokenService(new JwtService({ secret: SECRET }), { ttlSeconds: 900 });
+    usecase = new PlaceBidUsecase(new PlaceBidUsecaseDb(prisma), tokens);
     closeDb = new CloseAuctionsUsecaseDb(prisma);
   });
 
@@ -60,8 +64,21 @@ describe.skipIf(!reachable)('PlaceBidUsecase (postgres)', () => {
     return { auctionId: auction.id as AuctionId, athleteEmail: athlete.email };
   }
 
-  function bidAs(auctionId: AuctionId, localPart: string, amount: number): PlaceBidInput {
-    return { auctionId, email: normalizeEmail(`${localPart}@example.com`), amountCents: cents(amount) };
+  async function cardedBidderToken(localPart: string): Promise<string> {
+    const bidder = await createBidder(prisma, {
+      email: `${localPart}@example.com`,
+      stripeCustomerId: `cus_${localPart}`,
+      defaultPaymentMethodId: `pm_${localPart}`,
+      cardBrand: 'visa',
+      cardLast4: '4242',
+    });
+    const issued = await tokens.issue(bidderId(bidder.id), bidder.tokenVersion);
+
+    return issued.token;
+  }
+
+  async function bidAs(auctionId: AuctionId, localPart: string, amount: number): Promise<PlaceBidInput> {
+    return { auctionId, bidderToken: await cardedBidderToken(localPart), amountCents: cents(amount) };
   }
 
   async function holdLock(auctionId: AuctionId, closeBeforeRelease: boolean): Promise<() => Promise<void>> {
@@ -101,10 +118,9 @@ describe.skipIf(!reachable)('PlaceBidUsecase (postgres)', () => {
   describe('when six bidders race the same valid amount', () => {
     it('lets exactly one win and rejects the rest', async () => {
       const { auctionId } = await seedAuction();
+      const inputs = await Promise.all([0, 1, 2, 3, 4, 5].map((index) => bidAs(auctionId, `same-${index}`, 1500)));
 
-      const results = await Promise.allSettled(
-        [0, 1, 2, 3, 4, 5].map((index) => usecase.execute(bidAs(auctionId, `same-${index}`, 1500))),
-      );
+      const results = await Promise.allSettled(inputs.map((bidInput) => usecase.execute(bidInput)));
 
       const fulfilled = results.filter((result) => result.status === 'fulfilled');
       const codes = results.map(errorCode).filter((code) => code !== null);
@@ -124,9 +140,9 @@ describe.skipIf(!reachable)('PlaceBidUsecase (postgres)', () => {
       const amounts = [0, 1, 2, 3, 4, 5].map((index) => 1000 + 600 * index);
       const shuffled = [amounts[3], amounts[0], amounts[5], amounts[1], amounts[4], amounts[2]];
 
-      const results = await Promise.allSettled(
-        shuffled.map((amount) => usecase.execute(bidAs(auctionId, `asc-${amount}`, amount))),
-      );
+      const inputs = await Promise.all(shuffled.map((amount) => bidAs(auctionId, `asc-${amount}`, amount)));
+
+      const results = await Promise.allSettled(inputs.map((bidInput) => usecase.execute(bidInput)));
 
       const accepted = results.flatMap((result) => (result.status === 'fulfilled' ? [result.value.bid] : []));
       const bids = await bidsOf(auctionId);
@@ -155,48 +171,71 @@ describe.skipIf(!reachable)('PlaceBidUsecase (postgres)', () => {
   describe('when the same bidder fires twice at once', () => {
     it('accepts one and rejects the other as already leading', async () => {
       const { auctionId } = await seedAuction();
+      const bidInput = await bidAs(auctionId, 'twice', 1500);
 
-      const results = await Promise.allSettled([
-        usecase.execute(bidAs(auctionId, 'twice', 1500)),
-        usecase.execute(bidAs(auctionId, 'twice', 1500)),
-      ]);
-
-      const bidders = await prisma.bidder.count({ where: { email: 'twice@example.com' } });
+      const results = await Promise.allSettled([usecase.execute(bidInput), usecase.execute(bidInput)]);
 
       expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
       expect(results.map(errorCode).filter((code) => code !== null)).toEqual(['already_leading']);
-      expect(bidders).toBe(1);
     });
   });
 
-  describe('when a rejected bid would have created a new bidder', () => {
-    it('leaves no bidder row after a self-bid', async () => {
+  describe('when the bidder email is the athlete email', () => {
+    it('rejects the self-bid', async () => {
       const { auctionId, athleteEmail } = await seedAuction();
+      const localPart = athleteEmail.split('@')[0];
+      const bidder = await createBidder(prisma, {
+        email: athleteEmail,
+        stripeCustomerId: `cus_self_${localPart}`,
+        defaultPaymentMethodId: 'pm_self',
+        cardBrand: 'visa',
+        cardLast4: '4242',
+      });
+      const issued = await tokens.issue(bidderId(bidder.id), bidder.tokenVersion);
 
       await expect(
-        usecase.execute({ auctionId, email: normalizeEmail(athleteEmail), amountCents: cents(1500) }),
+        usecase.execute({ auctionId, bidderToken: issued.token, amountCents: cents(1500) }),
       ).rejects.toMatchObject({ code: 'self_bid_not_allowed' });
-
-      expect(await prisma.bidder.count({ where: { email: athleteEmail } })).toBe(0);
     });
+  });
 
-    it('leaves no bidder row after a below-floor bid', async () => {
+  describe('when the bidder has no card', () => {
+    it('rejects as card required and writes no bid', async () => {
       const { auctionId } = await seedAuction();
+      const bidder = await createBidder(prisma, { email: 'no-card@example.com' });
+      const issued = await tokens.issue(bidderId(bidder.id), bidder.tokenVersion);
 
-      await expect(usecase.execute(bidAs(auctionId, 'fresh-low', 999))).rejects.toThrow(
-        new InvalidValueError('bid_below_minimum'),
+      await expect(
+        usecase.execute({ auctionId, bidderToken: issued.token, amountCents: cents(1500) }),
+      ).rejects.toMatchObject({ code: 'card_required' });
+      expect(await bidsOf(auctionId)).toHaveLength(0);
+    });
+  });
+
+  describe('when the card was saved after the token was issued', () => {
+    it('rejects the stale token', async () => {
+      const { auctionId } = await seedAuction();
+      const bidder = await createBidder(prisma, { email: 'late-card@example.com', stripeCustomerId: 'cus_late' });
+      const issued = await tokens.issue(bidderId(bidder.id), bidder.tokenVersion);
+
+      await prisma.$executeRaw`
+        UPDATE "bidders" SET "default_payment_method_id" = 'pm_late', "card_brand" = 'visa', "card_last4" = '4242'
+        WHERE "id" = ${bidder.id}`;
+
+      await expect(usecase.execute({ auctionId, bidderToken: issued.token, amountCents: cents(1500) })).rejects.toThrow(
+        new UnauthorizedError('bidder_token_required'),
       );
-
-      expect(await prisma.bidder.count({ where: { email: 'fresh-low@example.com' } })).toBe(0);
+      expect(await bidsOf(auctionId)).toHaveLength(0);
     });
   });
 
   describe('when the lock is held by another transaction', () => {
     it('waits, then rejects after the auction is closed', async () => {
       const { auctionId } = await seedAuction();
+      const bidInput = await bidAs(auctionId, 'waiter', 1500);
       const releaseLock = await holdLock(auctionId, true);
       let settled = false;
-      const pending = usecase.execute(bidAs(auctionId, 'waiter', 1500)).finally(() => {
+      const pending = usecase.execute(bidInput).finally(() => {
         settled = true;
       });
       const outcome = pending.then(
@@ -217,11 +256,12 @@ describe.skipIf(!reachable)('PlaceBidUsecase (postgres)', () => {
   describe('when a bid races the close job', () => {
     it('never leaves a LEADING bid on a closed auction', async () => {
       for (let iteration = 0; iteration < 25; iteration++) {
+        const bidderToken = await cardedBidderToken(`racer-${iteration}`);
         const closeAt = new Date(Date.now() + 10 + iteration * 4);
         const { auctionId } = await seedAuction({ closeAt });
 
         const [bidResult] = await Promise.allSettled([
-          usecase.execute(bidAs(auctionId, `racer-${iteration}`, 1500)),
+          usecase.execute({ auctionId, bidderToken, amountCents: cents(1500) }),
           closeDb.closeAuction(auctionId, closeAt, new Date(closeAt.getTime() + 86_400_000)),
         ]);
 
@@ -248,7 +288,7 @@ describe.skipIf(!reachable)('PlaceBidUsecase (postgres)', () => {
     it('rejects as not open', async () => {
       const { auctionId } = await seedAuction({}, { isBanned: true });
 
-      await expect(usecase.execute(bidAs(auctionId, 'banned-seller', 1500))).rejects.toThrow(
+      await expect(usecase.execute(await bidAs(auctionId, 'banned-seller', 1500))).rejects.toThrow(
         new ConflictError('auction_not_open'),
       );
     });

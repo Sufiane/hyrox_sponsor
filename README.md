@@ -165,26 +165,28 @@ An in-process job (`AuctionSchedulerTask`, every 60 s) drives the auction lifecy
 - Set `AUCTION_SCHEDULER_ENABLED=false` on replicas or local workspaces that should not tick (default `true`). If it is disabled everywhere, auctions silently stall; each tick that changes something logs its counts.
 - Spec: `docs/specs/2026-10-09-auction-scheduling-design.md`.
 
-## Bidding (HYR-40)
+## Bidding (HYR-40, HYR-11)
 
-`POST /auctions/:auctionId/bids` places a bid. Public and unauthenticated (guest checkout): the caller sends an unverified email.
+`POST /auctions/:auctionId/bids` places a bid. The bidder is identified by the bidder token only (guest checkout, no account).
 
-- Body: `{ "email": string, "amountCents": integer >= 1 }`. Amounts are integer cents. Unknown fields (for example `bidderId`) are rejected with `400 validation_failed`.
+- Header `X-Bidder-Token`: required. The token comes from `POST /bidders/setup-intents` and must carry the bidder's current token version.
+- The bidder must have a saved card (`default_payment_method_id` and `stripe_customer_id` set).
+- Body: `{ "amountCents": integer >= 1 }`. Amounts are integer cents. Unknown fields are rejected with `400 validation_failed`, including `email` (removed in HYR-11) and `bidderId`.
 - `201` response: `bidId`, `auctionId`, `amountCents`, `status` (always `LEADING`), `placedAt`, `closeAt`, `minimumNextBidCents`. It never carries bidder identity.
 - Errors, as `{ statusCode, message: <code>, error }`:
 
 | Status | Code |
 |---|---|
 | 400 | `validation_failed`, `auction_id_invalid`, `bid_below_minimum`, `bid_above_maximum` |
-| 403 | `self_bid_not_allowed` (the bidder email is the athlete email; the ticket text called it `cannot_bid_on_own_auction`) |
+| 401 | `bidder_token_required` (missing, malformed, expired, unknown bidder, or stale version) |
+| 403 | `card_required` (no saved card or no Stripe customer), `self_bid_not_allowed` (the token bidder's email is the athlete email; the ticket text called it `cannot_bid_on_own_auction`) |
 | 404 | `auction_not_found` |
 | 409 | `auction_not_open` (not open, closed, or seller banned), `already_leading` |
 | 429 | throttled |
 
 - Throttle: 10 requests per minute per client IP, counting rejected requests, in-memory per instance (effective limit is 10 x instance count). The IP is correct only when `TRUST_PROXY_HOPS` matches the topology; at 0 behind a proxy all bidders share the proxy's bucket.
-- No code gate: bids are non-binding until the Stripe hold (HYR-11), so HYR-11 must ship before the API is exposed publicly.
-- Known leak: `409 already_leading` reveals whether the typed email currently leads that auction; the throttle limits probing.
-- Spec: `docs/specs/2026-10-19-hyr-40-bid-placement-endpoint-design.md`. Manual concurrency checks: `docs/qa/hyr-40-bid-concurrency-checklist.md`.
+- No public exposure yet: saving a card bumps the token version, so the card owner's own token goes stale and nobody with a saved card can bid until the post-card-save token reissue ships (HYR-64, spec D2). Bids also place no Stripe hold yet (HYR-11 PR C2).
+- Specs: `docs/specs/2026-10-19-hyr-40-bid-placement-endpoint-design.md`, `docs/specs/2026-11-27-hyr-11-bid-authorization-hold-design.md`. Manual concurrency checks: `docs/qa/hyr-40-bid-concurrency-checklist.md`.
 
 ## Bidder payment setup (HYR-59)
 
@@ -208,7 +210,7 @@ An in-process job (`AuctionSchedulerTask`, every 60 s) drives the auction lifecy
 - Throttle: 10 requests per minute per client IP, in-memory per instance, same caveats as bidding (`TRUST_PROXY_HOPS` must match the topology).
 - Env: `BIDDER_JWT_SECRET` (required, min 32 chars, must differ from `JWT_SECRET` and `STAFF_JWT_SECRET`) and `BIDDER_TOKEN_TTL_SECONDS` (default 86400).
 - Token version: `bidders.token_version` is bumped when a card is saved (HYR-60 writes the card columns and the bump in one UPDATE).
-- Enforcement of the token on bids is HYR-11; a lost token locks an email that has a card until HYR-62.
+- Bids require this token (HYR-11); a lost token locks an email that has a card until HYR-62.
 - Known leak: `401 bidder_token_required` reveals that the email has a saved card; the throttle limits probing.
 - Spec: `docs/specs/2026-11-15-hyr-59-bidder-payment-setup-design.md`.
 

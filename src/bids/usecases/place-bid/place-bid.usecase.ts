@@ -1,12 +1,27 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConflictError, ForbiddenError, InvalidValueError, NotFoundError } from '../../../common/domain-error';
+import { BidderTokenService } from '../../../bidders/bidder-token.service';
+import {
+  ConflictError,
+  ForbiddenError,
+  InvalidValueError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../../../common/domain-error';
 import type { NormalizedEmail } from '../../../common/email';
 import type { AuctionId, BidderId, BidId } from '../../../common/ids';
 import type { Cents } from '../../../common/money';
+import type { StripeCustomerId, StripePaymentMethodId } from '../../../common/stripe-ids';
 import { MAX_BID_CENTS, minimumNextBidCents } from '../../bid-increment';
 import { PlaceBidUsecaseDb, type LockedAuction, type PlaceBidSession, type PlacedBid } from './place-bid.usecase.db';
 
-export type PlaceBidInput = { auctionId: AuctionId; email: NormalizedEmail; amountCents: Cents };
+export type PlaceBidInput = { auctionId: AuctionId; bidderToken: string | undefined; amountCents: Cents };
+
+export type CardedBidder = {
+  id: BidderId;
+  email: NormalizedEmail;
+  customerId: StripeCustomerId;
+  paymentMethodId: StripePaymentMethodId;
+};
 
 export type PreviousLeader = { bidId: BidId; bidderId: BidderId; amountCents: Cents };
 
@@ -16,7 +31,10 @@ export type PlaceBidResult = { bid: PlacedBid; closeAt: Date; previousLeader: Pr
 export class PlaceBidUsecase {
   private readonly logger = new Logger(PlaceBidUsecase.name);
 
-  constructor(private readonly db: PlaceBidUsecaseDb) {}
+  constructor(
+    private readonly db: PlaceBidUsecaseDb,
+    private readonly tokens: BidderTokenService,
+  ) {}
 
   async execute(input: PlaceBidInput): Promise<PlaceBidResult> {
     if (input.amountCents > MAX_BID_CENTS) {
@@ -25,8 +43,9 @@ export class PlaceBidUsecase {
       throw new InvalidValueError('bid_above_maximum');
     }
 
+    const bidder = await this.cardedBidder(input.bidderToken);
     const result = await this.db.withLockedAuction(input.auctionId, (auction, session) =>
-      this.place(input, auction, session),
+      this.place(input, bidder, auction, session),
     );
 
     if (!result) {
@@ -38,20 +57,50 @@ export class PlaceBidUsecase {
     return result;
   }
 
-  private async place(input: PlaceBidInput, auction: LockedAuction, session: PlaceBidSession): Promise<PlaceBidResult> {
+  private async cardedBidder(rawToken: string | undefined): Promise<CardedBidder> {
+    const verified = await this.tokens.verify(rawToken);
+    const bidder = await this.db.findBidder(verified.bidderId);
+
+    if (bidder === null) {
+      this.logger.warn(`Bidder token presented for unknown bidder ${verified.bidderId}`);
+
+      throw new UnauthorizedError('bidder_token_required');
+    }
+
+    this.tokens.assertCurrent(verified, { id: bidder.id, tokenVersion: bidder.tokenVersion });
+
+    if (bidder.stripeCustomerId === null || bidder.defaultPaymentMethodId === null) {
+      this.logger.warn(`Bidder ${bidder.id} has no saved card`);
+
+      throw new ForbiddenError('card_required');
+    }
+
+    return {
+      id: bidder.id,
+      email: bidder.email,
+      customerId: bidder.stripeCustomerId,
+      paymentMethodId: bidder.defaultPaymentMethodId,
+    };
+  }
+
+  private async place(
+    input: PlaceBidInput,
+    bidder: CardedBidder,
+    auction: LockedAuction,
+    session: PlaceBidSession,
+  ): Promise<PlaceBidResult> {
     this.assertOpen(input.auctionId, auction);
 
-    if (input.email === auction.athleteEmail) {
+    if (bidder.email === auction.athleteEmail) {
       this.logger.warn(`Self-bid refused on auction ${input.auctionId}`);
 
       throw new ForbiddenError('self_bid_not_allowed');
     }
 
-    const bidderId = await session.upsertBidder(input.email);
     const leading = await session.findLeading();
 
-    if (leading && leading.bidderId === bidderId) {
-      this.logger.warn(`Bidder ${bidderId} already leads auction ${input.auctionId}`);
+    if (leading && leading.bidderId === bidder.id) {
+      this.logger.warn(`Bidder ${bidder.id} already leads auction ${input.auctionId}`);
 
       throw new ConflictError('already_leading');
     }
@@ -71,7 +120,7 @@ export class PlaceBidUsecase {
       await session.markOutbid(leading.id);
     }
 
-    const bid = await session.insertLeading(bidderId, input.amountCents);
+    const bid = await session.insertLeading(bidder.id, input.amountCents);
 
     return {
       bid,

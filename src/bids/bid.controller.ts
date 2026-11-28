@@ -1,6 +1,5 @@
-import { Body, Controller, Param, Post } from '@nestjs/common';
+import { Body, Controller, Headers, Param, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { normalizeEmail } from '../common/email';
 import { cents } from '../common/money';
 import { BidService } from './bid.service';
 import { AuctionBidParamsDto } from './dto/auction-bid-params.dto';
@@ -15,10 +14,14 @@ export class BidController {
 
   @Post()
   @Throttle(PLACE_BID_LIMIT)
-  async placeBid(@Param() params: AuctionBidParamsDto, @Body() body: PlaceBidDto): Promise<PlaceBidResponse> {
+  async placeBid(
+    @Param() params: AuctionBidParamsDto,
+    @Body() body: PlaceBidDto,
+    @Headers('x-bidder-token') bidderToken: string | undefined,
+  ): Promise<PlaceBidResponse> {
     const result = await this.service.placeBid({
       auctionId: params.auctionId,
-      email: normalizeEmail(body.email),
+      bidderToken,
       amountCents: cents(body.amountCents),
     });
 

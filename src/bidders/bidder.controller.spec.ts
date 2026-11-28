@@ -1,10 +1,10 @@
-import { ConflictException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import type { BidderToken } from '../common/bidder-token';
-import { InvalidValueError } from '../common/domain-error';
+import { InvalidValueError, UnauthorizedError } from '../common/domain-error';
 import { DomainErrorFilter } from '../common/domain-error.filter';
 import { applyTrustProxy } from '../common/trust-proxy';
 import { createValidationPipe } from '../common/validation-pipe';
@@ -120,14 +120,18 @@ describe('BidderController', () => {
 
   describe('when the service rejects with bidder_token_required', () => {
     beforeEach(() => {
-      createPaymentSetup.mockRejectedValue(new UnauthorizedException('bidder_token_required'));
+      createPaymentSetup.mockRejectedValue(new UnauthorizedError('bidder_token_required'));
     });
 
-    it('returns 401 with the code', async () => {
+    it('returns 401 with the Nest body shape', async () => {
       const response = await post(baseUrl, { email: 'jamie@x.com' });
 
       expect(response.status).toBe(401);
-      expect(await response.json()).toMatchObject({ message: 'bidder_token_required' });
+      expect(await response.json()).toEqual({
+        statusCode: 401,
+        message: 'bidder_token_required',
+        error: 'Unauthorized',
+      });
     });
   });
 

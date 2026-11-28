@@ -1,6 +1,7 @@
-import { ConflictException, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Logger, NotFoundException } from '@nestjs/common';
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import type { BidderToken } from '../../../common/bidder-token';
+import { UnauthorizedError } from '../../../common/domain-error';
 import type { BidderId } from '../../../common/ids';
 import type { StripeCustomerId, StripeSetupIntentId } from '../../../common/stripe-ids';
 import type { StripeGateway } from '../../../stripe/stripe-gateway';
@@ -104,7 +105,7 @@ describe('CreatePaymentSetupUsecase', () => {
 
     describe('and no token is sent', () => {
       beforeEach(() => {
-        tokens.verify.mockRejectedValue(new UnauthorizedException('bidder_token_required'));
+        tokens.verify.mockRejectedValue(new UnauthorizedError('bidder_token_required'));
       });
 
       it('rejects with bidder_token_required and calls nothing else', async () => {
@@ -129,52 +130,48 @@ describe('CreatePaymentSetupUsecase', () => {
 
         expect(tokens.verify).toHaveBeenCalledTimes(1);
         expect(tokens.verify).toHaveBeenCalledWith('raw');
+        expect(tokens.assertCurrent).toHaveBeenCalledWith({ bidderId: id, tokenVersion: 1 }, { id, tokenVersion: 1 });
         expect(tokens.issue).toHaveBeenCalledWith(id, 1);
         expect(result.bidderToken).toBe(issuedToken);
       });
     });
 
-    describe('and the token belongs to another bidder', () => {
-      beforeEach(() => {
-        tokens.verify.mockResolvedValue({ bidderId: 'bidder-2' as BidderId, tokenVersion: 0 });
-      });
-
-      it('rejects with bidder_token_required and logs both ids', async () => {
-        await expect(usecase.execute({ email: 'jamie@x.com', bidderToken: 'raw' })).rejects.toMatchObject({
-          message: 'bidder_token_required',
-        });
-
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('bidder-2'));
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('bidder-1'));
-        expect(stripe.createSetupIntent).not.toHaveBeenCalled();
-      });
-    });
-
-    describe('and the token version is stale', () => {
+    describe('and the token is not current for this bidder', () => {
       beforeEach(() => {
         db.upsertByEmail.mockResolvedValue(row({ defaultPaymentMethodId: 'pm_1', tokenVersion: 1 }));
-        tokens.verify.mockResolvedValue({ bidderId: id, tokenVersion: 0 });
+        tokens.verify.mockResolvedValue({ bidderId: 'bidder-2' as BidderId, tokenVersion: 0 });
+        tokens.assertCurrent.mockImplementation(() => {
+          throw new UnauthorizedError('bidder_token_required');
+        });
       });
 
-      it('rejects with bidder_token_required and logs the version mismatch', async () => {
-        await expect(usecase.execute({ email: 'jamie@x.com', bidderToken: 'old' })).rejects.toMatchObject({
-          message: 'bidder_token_required',
-        });
+      it('checks the token against the stored bidder', async () => {
+        await expect(usecase.execute({ email: 'jamie@x.com', bidderToken: 'old' })).rejects.toThrow(
+          new UnauthorizedError('bidder_token_required'),
+        );
 
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('stale'));
-        expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('old'));
+        expect(tokens.assertCurrent).toHaveBeenCalledWith(
+          { bidderId: 'bidder-2', tokenVersion: 0 },
+          { id, tokenVersion: 1 },
+        );
+      });
+
+      it('calls nothing else', async () => {
+        await expect(usecase.execute({ email: 'jamie@x.com', bidderToken: 'old' })).rejects.toThrow();
+
         expect(stripe.createSetupIntent).not.toHaveBeenCalled();
+        expect(tokens.issue).not.toHaveBeenCalled();
       });
     });
 
     describe('and the token is expired', () => {
       beforeEach(() => {
-        tokens.verify.mockRejectedValue(new UnauthorizedException('bidder_token_required'));
+        tokens.verify.mockRejectedValue(new UnauthorizedError('bidder_token_required'));
       });
 
       it('propagates the rejection before calling Stripe', async () => {
         await expect(usecase.execute({ email: 'jamie@x.com', bidderToken: 'old' })).rejects.toBeInstanceOf(
-          UnauthorizedException,
+          UnauthorizedError,
         );
 
         expect(stripe.createSetupIntent).not.toHaveBeenCalled();
@@ -189,7 +186,7 @@ describe('CreatePaymentSetupUsecase', () => {
 
     describe('and no token was sent', () => {
       beforeEach(() => {
-        tokens.verify.mockRejectedValue(new UnauthorizedException('bidder_token_required'));
+        tokens.verify.mockRejectedValue(new UnauthorizedError('bidder_token_required'));
       });
 
       it('rejects instead of issuing a token', async () => {
@@ -209,6 +206,7 @@ describe('CreatePaymentSetupUsecase', () => {
       it('issues a token at the new version', async () => {
         await usecase.execute({ email: 'jamie@x.com', bidderToken: 'raw' });
 
+        expect(tokens.assertCurrent).toHaveBeenCalledWith({ bidderId: id, tokenVersion: 1 }, { id, tokenVersion: 1 });
         expect(tokens.issue).toHaveBeenCalledWith(id, 1);
       });
     });

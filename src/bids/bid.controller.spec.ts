@@ -1,6 +1,12 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { ConflictError, ForbiddenError, InvalidValueError, NotFoundError } from '../common/domain-error';
+import {
+  ConflictError,
+  ForbiddenError,
+  InvalidValueError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../common/domain-error';
 import { DomainErrorFilter } from '../common/domain-error.filter';
 import type { AuctionId, BidderId, BidId } from '../common/ids';
 import { cents } from '../common/money';
@@ -29,10 +35,10 @@ describe('BidController', () => {
   let baseUrl: string;
   let placeBid: ReturnType<typeof vi.fn>;
 
-  async function postBid(body: unknown, auctionPath = 'auc-1'): Promise<Reply> {
+  async function postBid(body: unknown, auctionPath = 'auc-1', token: string | null = 'token-1'): Promise<Reply> {
     const response = await fetch(`${baseUrl}/auctions/${auctionPath}/bids`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(token === null ? {} : { 'X-Bidder-Token': token }) },
       body: JSON.stringify(body),
     });
 
@@ -64,7 +70,7 @@ describe('BidController', () => {
     });
 
     it('responds 201 with the mapped bid', async () => {
-      const reply = await postBid({ email: 'jamie@x.com', amountCents: 5_500 });
+      const reply = await postBid({ amountCents: 5_500 });
 
       expect(reply.status).toBe(201);
       expect(reply.json).toEqual({
@@ -78,15 +84,15 @@ describe('BidController', () => {
       });
     });
 
-    it('passes the normalized email, cents and auction id to the service', async () => {
-      await postBid({ email: 'Jamie@X.com', amountCents: 5_500 });
+    it('forwards the token header and amount', async () => {
+      await postBid({ amountCents: 5_500 });
 
       expect(placeBid).toHaveBeenCalledTimes(1);
-      expect(placeBid).toHaveBeenCalledWith({ auctionId: 'auc-1', email: 'jamie@x.com', amountCents: 5_500 });
+      expect(placeBid).toHaveBeenCalledWith({ auctionId: 'auc-1', bidderToken: 'token-1', amountCents: 5_500 });
     });
 
     it('exposes no bidder identity', async () => {
-      const reply = await postBid({ email: 'jamie@x.com', amountCents: 5_500 });
+      const reply = await postBid({ amountCents: 5_500 });
 
       expect(reply.json).not.toHaveProperty('bidderId');
       expect(reply.json).not.toHaveProperty('email');
@@ -98,6 +104,8 @@ describe('BidController', () => {
     it.each([
       [new InvalidValueError('bid_below_minimum'), 'bid_below_minimum', 400],
       [new InvalidValueError('bid_above_maximum'), 'bid_above_maximum', 400],
+      [new UnauthorizedError('bidder_token_required'), 'bidder_token_required', 401],
+      [new ForbiddenError('card_required'), 'card_required', 403],
       [new ForbiddenError('self_bid_not_allowed'), 'self_bid_not_allowed', 403],
       [new NotFoundError('auction_not_found'), 'auction_not_found', 404],
       [new ConflictError('auction_not_open'), 'auction_not_open', 409],
@@ -105,7 +113,7 @@ describe('BidController', () => {
     ])('maps %j to its status', async (error, code, status) => {
       placeBid.mockRejectedValue(error);
 
-      const reply = await postBid({ email: 'jamie@x.com', amountCents: 5_500 });
+      const reply = await postBid({ amountCents: 5_500 });
 
       expect(reply.status).toBe(status);
       expect(reply.json.message).toBe(code);
@@ -114,13 +122,12 @@ describe('BidController', () => {
 
   describe('when the body is invalid', () => {
     it.each([
-      ['email is missing', { amountCents: 5_500 }],
-      ['email is malformed', { email: 'not-an-email', amountCents: 5_500 }],
-      ['amount is zero', { email: 'jamie@x.com', amountCents: 0 }],
-      ['amount is fractional', { email: 'jamie@x.com', amountCents: 12.5 }],
-      ['amount is a string', { email: 'jamie@x.com', amountCents: '5000' }],
-      ['amount is missing', { email: 'jamie@x.com' }],
-      ['an extra field is sent', { email: 'jamie@x.com', amountCents: 5_500, bidderId: 'bidder-9' }],
+      ['an email is sent', { email: 'jamie@x.com', amountCents: 5_500 }],
+      ['amount is zero', { amountCents: 0 }],
+      ['amount is fractional', { amountCents: 12.5 }],
+      ['amount is a string', { amountCents: '5000' }],
+      ['amount is missing', {}],
+      ['an extra field is sent', { amountCents: 5_500, bidderId: 'bidder-9' }],
     ])('rejects when %s', async (_label, body) => {
       const reply = await postBid(body);
 
@@ -130,9 +137,36 @@ describe('BidController', () => {
     });
   });
 
+  describe('when the token is rejected', () => {
+    beforeEach(() => {
+      placeBid.mockRejectedValue(new UnauthorizedError('bidder_token_required'));
+    });
+
+    it('responds with the Nest 401 body', async () => {
+      const reply = await postBid({ amountCents: 5_500 });
+
+      expect(reply).toEqual({
+        status: 401,
+        json: { statusCode: 401, message: 'bidder_token_required', error: 'Unauthorized' },
+      });
+    });
+  });
+
+  describe('when the token header is missing', () => {
+    beforeEach(() => {
+      placeBid.mockResolvedValue(placeBidResult);
+    });
+
+    it('passes an undefined token to the service', async () => {
+      await postBid({ amountCents: 5_500 }, 'auc-1', null);
+
+      expect(placeBid).toHaveBeenCalledWith(expect.objectContaining({ bidderToken: undefined }));
+    });
+  });
+
   describe('when the auction id is blank', () => {
     it('rejects with auction_id_invalid', async () => {
-      const reply = await postBid({ email: 'jamie@x.com', amountCents: 5_500 }, '%20');
+      const reply = await postBid({ amountCents: 5_500 }, '%20');
 
       expect(reply.status).toBe(400);
       expect(reply.json.message).toBe('auction_id_invalid');
