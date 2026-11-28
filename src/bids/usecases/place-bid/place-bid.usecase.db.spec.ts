@@ -1,6 +1,7 @@
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import type { AuctionId, BidderId, BidId } from '../../../common/ids';
 import { cents } from '../../../common/money';
+import { stripePaymentIntentId } from '../../../common/stripe-ids';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import { PlaceBidUsecaseDb, type PlaceBidSession } from './place-bid.usecase.db';
 
@@ -72,6 +73,108 @@ describe('PlaceBidUsecaseDb', () => {
 
       it('returns null', async () => {
         await expect(db.findBidder('bidder-1' as BidderId)).resolves.toBeNull();
+      });
+    });
+  });
+
+  describe('readBiddingSnapshot', () => {
+    const auctionRow = {
+      status: 'OPEN',
+      closeAt,
+      floorPriceCents: 1000,
+      raceEntry: { athlete: { email: 'athlete@example.com', isBanned: false } },
+    };
+
+    describe('when the auction has a leading bid', () => {
+      beforeEach(() => {
+        prisma.$queryRaw.mockResolvedValue([{ db_now: dbNow }] as never);
+        prisma.auction.findUnique.mockResolvedValue({
+          ...auctionRow,
+          bids: [{ bidderId: 'bidder-1', amountCents: 5000 }],
+        } as never);
+      });
+
+      it('returns the unlocked snapshot with the leader rule fields', async () => {
+        await expect(db.readBiddingSnapshot(auctionId)).resolves.toEqual({
+          auction: {
+            status: 'OPEN',
+            closeAt,
+            dbNow,
+            floorPriceCents: 1000,
+            athleteEmail: 'athlete@example.com',
+            athleteBanned: false,
+          },
+          leading: { bidderId: 'bidder-1', amountCents: 5000 },
+        });
+      });
+
+      it('reads only the leading bid', async () => {
+        await db.readBiddingSnapshot(auctionId);
+
+        expect(prisma.auction.findUnique).toHaveBeenCalledWith({
+          where: { id: auctionId },
+          select: {
+            status: true,
+            closeAt: true,
+            floorPriceCents: true,
+            raceEntry: { select: { athlete: { select: { email: true, isBanned: true } } } },
+            bids: { where: { status: 'LEADING' }, select: { bidderId: true, amountCents: true }, take: 1 },
+          },
+        });
+      });
+
+      it('neither locks nor opens a transaction', async () => {
+        await db.readBiddingSnapshot(auctionId);
+
+        const [strings] = prisma.$queryRaw.mock.calls[0] as unknown as [TemplateStringsArray];
+
+        expect(strings.join('?')).not.toContain('FOR UPDATE');
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('when the auction has no leading bid', () => {
+      beforeEach(() => {
+        prisma.$queryRaw.mockResolvedValue([{ db_now: dbNow }] as never);
+        prisma.auction.findUnique.mockResolvedValue({ ...auctionRow, bids: [] } as never);
+      });
+
+      it('returns a null leader', async () => {
+        await expect(db.readBiddingSnapshot(auctionId)).resolves.toMatchObject({ leading: null });
+      });
+    });
+
+    describe('when the auction does not exist', () => {
+      beforeEach(() => {
+        prisma.$queryRaw.mockResolvedValue([{ db_now: dbNow }] as never);
+        prisma.auction.findUnique.mockResolvedValue(null);
+      });
+
+      it('returns null', async () => {
+        await expect(db.readBiddingSnapshot(auctionId)).resolves.toBeNull();
+      });
+    });
+  });
+
+  describe('bidExists', () => {
+    describe('when the bid row exists', () => {
+      beforeEach(() => {
+        prisma.bid.findUnique.mockResolvedValue({ id: 'bid-2' } as never);
+      });
+
+      it('returns true', async () => {
+        await expect(db.bidExists('bid-2' as BidId)).resolves.toBe(true);
+        expect(prisma.bid.findUnique).toHaveBeenCalledWith({ where: { id: 'bid-2' }, select: { id: true } });
+      });
+    });
+
+    describe('when the bid row does not exist', () => {
+      beforeEach(() => {
+        prisma.bid.findUnique.mockResolvedValue(null);
+      });
+
+      it('returns false', async () => {
+        await expect(db.bidExists('bid-2' as BidId)).resolves.toBe(false);
       });
     });
   });
@@ -168,22 +271,104 @@ describe('PlaceBidUsecaseDb', () => {
     });
 
     describe('findLeading', () => {
-      describe('when there is a leading bid', () => {
-        it('returns it with a validated amount', async () => {
-          tx.bid.findFirst.mockResolvedValue({ id: 'bid-1', bidderId: 'bidder-1', amountCents: 5000 } as never);
+      const leadingSelect = {
+        id: true,
+        bidderId: true,
+        amountCents: true,
+        escrowTransactions: {
+          select: { type: true, stripePaymentIntentId: true, amountCents: true },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: 1,
+        },
+      };
 
-          const result = await session.findLeading();
+      describe('when the leader has an active hold', () => {
+        beforeEach(() => {
+          tx.bid.findFirst.mockResolvedValue({
+            id: 'bid-1',
+            bidderId: 'bidder-1',
+            amountCents: 5000,
+            escrowTransactions: [{ type: 'AUTHORIZED', stripePaymentIntentId: 'pi_1', amountCents: 5000 }],
+          } as never);
+        });
 
-          expect(result).toEqual({ id: 'bid-1', bidderId: 'bidder-1', amountCents: 5000 });
-          expect(tx.bid.findFirst).toHaveBeenCalledWith({ where: { auctionId, status: 'LEADING' } });
+        it('returns the leader with its hold', async () => {
+          await expect(session.findLeading()).resolves.toEqual({
+            id: 'bid-1',
+            bidderId: 'bidder-1',
+            amountCents: 5000,
+            hold: { paymentIntentId: 'pi_1', amountCents: 5000 },
+          });
+        });
+
+        it('reads only the latest escrow row of the leading bid', async () => {
+          await session.findLeading();
+
+          expect(tx.bid.findFirst).toHaveBeenCalledWith({
+            where: { auctionId, status: 'LEADING' },
+            select: leadingSelect,
+          });
+        });
+      });
+
+      describe('when the leader has no escrow row', () => {
+        beforeEach(() => {
+          tx.bid.findFirst.mockResolvedValue({
+            id: 'bid-1',
+            bidderId: 'bidder-1',
+            amountCents: 5000,
+            escrowTransactions: [],
+          } as never);
+        });
+
+        it('returns a null hold', async () => {
+          await expect(session.findLeading()).resolves.toEqual({
+            id: 'bid-1',
+            bidderId: 'bidder-1',
+            amountCents: 5000,
+            hold: null,
+          });
+        });
+      });
+
+      describe('when the leader hold was already voided', () => {
+        beforeEach(() => {
+          tx.bid.findFirst.mockResolvedValue({
+            id: 'bid-1',
+            bidderId: 'bidder-1',
+            amountCents: 5000,
+            escrowTransactions: [{ type: 'VOIDED', stripePaymentIntentId: 'pi_1', amountCents: 5000 }],
+          } as never);
+        });
+
+        it('returns a null hold', async () => {
+          await expect(session.findLeading()).resolves.toMatchObject({ hold: null });
         });
       });
 
       describe('when there is no leading bid', () => {
-        it('returns null', async () => {
+        beforeEach(() => {
           tx.bid.findFirst.mockResolvedValue(null);
+        });
 
-          expect(await session.findLeading()).toBeNull();
+        it('returns null', async () => {
+          await expect(session.findLeading()).resolves.toBeNull();
+        });
+      });
+    });
+
+    describe('recordAuthorized', () => {
+      it('inserts an AUTHORIZED row with the capture deadline', async () => {
+        const captureBefore = new Date('2026-11-15T12:00:00Z');
+
+        await session.recordAuthorized('bid-2' as BidId, {
+          paymentIntentId: stripePaymentIntentId('pi_2'),
+          amountCents: cents(5500),
+          captureBefore,
+        });
+
+        expect(tx.escrowTransaction.create).toHaveBeenCalledWith({
+          data: { bidId: 'bid-2', stripePaymentIntentId: 'pi_2', type: 'AUTHORIZED', amountCents: 5500, captureBefore },
         });
       });
     });

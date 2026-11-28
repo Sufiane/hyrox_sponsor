@@ -5,13 +5,24 @@ import type { AuctionId, BidderId, BidId } from '../../../common/ids';
 import { cents, type Cents } from '../../../common/money';
 import {
   stripeCustomerId,
+  stripePaymentIntentId,
   stripePaymentMethodId,
   type StripeCustomerId,
+  type StripePaymentIntentId,
   type StripePaymentMethodId,
 } from '../../../common/stripe-ids';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 const TRANSACTION_TIMEOUT_MS = 10_000;
+
+const AUCTION_SELECT = {
+  status: true,
+  closeAt: true,
+  floorPriceCents: true,
+  raceEntry: { select: { athlete: { select: { email: true, isBanned: true } } } },
+} as const;
+
+type AuctionRow = Prisma.AuctionGetPayload<{ select: typeof AUCTION_SELECT }>;
 
 export type LockedAuction = {
   status: 'SCHEDULED' | 'OPEN' | 'CLOSED';
@@ -30,7 +41,15 @@ export type BiddingBidder = {
   defaultPaymentMethodId: StripePaymentMethodId | null;
 };
 
-export type LeadingBid = { id: BidId; bidderId: BidderId; amountCents: Cents };
+export type ActiveHold = { paymentIntentId: StripePaymentIntentId; amountCents: Cents };
+
+export type AuthorizedHold = ActiveHold & { captureBefore: Date | null };
+
+export type BidLeader = { bidderId: BidderId; amountCents: Cents };
+
+export type LeadingBid = BidLeader & { id: BidId; hold: ActiveHold | null };
+
+export type BiddingSnapshot = { auction: LockedAuction; leading: BidLeader | null };
 
 export type PlacedBid = {
   id: BidId;
@@ -44,6 +63,7 @@ export interface PlaceBidSession {
   findLeading(): Promise<LeadingBid | null>;
   markOutbid(bidId: BidId): Promise<void>;
   insertLeading(bidderId: BidderId, amountCents: Cents): Promise<PlacedBid>;
+  recordAuthorized(bidId: BidId, hold: AuthorizedHold): Promise<void>;
 }
 
 @Injectable()
@@ -70,6 +90,37 @@ export class PlaceBidUsecaseDb {
     };
   }
 
+  async readBiddingSnapshot(auctionId: AuctionId): Promise<BiddingSnapshot | null> {
+    const [{ db_now: dbNow }] = await this.prisma.$queryRaw<Array<{ db_now: Date }>>`SELECT now() AS "db_now"`;
+    const auction = await this.prisma.auction.findUnique({
+      where: { id: auctionId },
+      select: {
+        ...AUCTION_SELECT,
+        bids: { where: { status: 'LEADING' }, select: { bidderId: true, amountCents: true }, take: 1 },
+      },
+    });
+
+    if (!auction) {
+      return null;
+    }
+
+    const [leading] = auction.bids;
+
+    return {
+      auction: this.toLockedAuction(auction, dbNow),
+      leading:
+        leading === undefined
+          ? null
+          : { bidderId: leading.bidderId as BidderId, amountCents: cents(leading.amountCents) },
+    };
+  }
+
+  async bidExists(bidId: BidId): Promise<boolean> {
+    const bid = await this.prisma.bid.findUnique({ where: { id: bidId }, select: { id: true } });
+
+    return bid !== null;
+  }
+
   withLockedAuction<T>(
     auctionId: AuctionId,
     work: (auction: LockedAuction, session: PlaceBidSession) => Promise<T>,
@@ -85,45 +136,59 @@ export class PlaceBidUsecaseDb {
           return null;
         }
 
-        const auction = await tx.auction.findUniqueOrThrow({
-          where: { id: auctionId },
-          select: {
-            status: true,
-            closeAt: true,
-            floorPriceCents: true,
-            raceEntry: { select: { athlete: { select: { email: true, isBanned: true } } } },
-          },
-        });
+        const auction = await tx.auction.findUniqueOrThrow({ where: { id: auctionId }, select: AUCTION_SELECT });
 
-        return work(
-          {
-            status: auction.status,
-            closeAt: auction.closeAt,
-            dbNow: locked[0].db_now,
-            floorPriceCents: cents(auction.floorPriceCents),
-            athleteEmail: normalizeEmail(auction.raceEntry.athlete.email),
-            athleteBanned: auction.raceEntry.athlete.isBanned,
-          },
-          this.sessionFor(tx, auctionId),
-        );
+        return work(this.toLockedAuction(auction, locked[0].db_now), this.sessionFor(tx, auctionId));
       },
       { timeout: TRANSACTION_TIMEOUT_MS },
     );
   }
 
+  private toLockedAuction(auction: AuctionRow, dbNow: Date): LockedAuction {
+    return {
+      status: auction.status,
+      closeAt: auction.closeAt,
+      dbNow,
+      floorPriceCents: cents(auction.floorPriceCents),
+      athleteEmail: normalizeEmail(auction.raceEntry.athlete.email),
+      athleteBanned: auction.raceEntry.athlete.isBanned,
+    };
+  }
+
   private sessionFor(tx: Prisma.TransactionClient, auctionId: AuctionId): PlaceBidSession {
     return {
       findLeading: async (): Promise<LeadingBid | null> => {
-        const leading = await tx.bid.findFirst({ where: { auctionId, status: 'LEADING' } });
+        const leading = await tx.bid.findFirst({
+          where: { auctionId, status: 'LEADING' },
+          select: {
+            id: true,
+            bidderId: true,
+            amountCents: true,
+            escrowTransactions: {
+              select: { type: true, stripePaymentIntentId: true, amountCents: true },
+              orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+              take: 1,
+            },
+          },
+        });
 
         if (!leading) {
           return null;
         }
 
+        const [latest] = leading.escrowTransactions;
+
         return {
           id: leading.id as BidId,
           bidderId: leading.bidderId as BidderId,
           amountCents: cents(leading.amountCents),
+          hold:
+            latest?.type === 'AUTHORIZED'
+              ? {
+                  paymentIntentId: stripePaymentIntentId(latest.stripePaymentIntentId),
+                  amountCents: cents(latest.amountCents),
+                }
+              : null,
         };
       },
       markOutbid: async (bidId): Promise<void> => {
@@ -141,6 +206,17 @@ export class PlaceBidUsecaseDb {
           amountCents,
           placedAt: bid.placedAt,
         };
+      },
+      recordAuthorized: async (bidId, hold): Promise<void> => {
+        await tx.escrowTransaction.create({
+          data: {
+            bidId,
+            stripePaymentIntentId: hold.paymentIntentId,
+            type: 'AUTHORIZED',
+            amountCents: hold.amountCents,
+            captureBefore: hold.captureBefore,
+          },
+        });
       },
     };
   }

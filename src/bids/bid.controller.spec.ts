@@ -5,9 +5,11 @@ import {
   ForbiddenError,
   InvalidValueError,
   NotFoundError,
+  PaymentRequiredError,
   UnauthorizedError,
 } from '../common/domain-error';
 import { DomainErrorFilter } from '../common/domain-error.filter';
+import { StripeMisconfiguredError, StripeUnavailableError } from '../common/stripe-errors';
 import type { AuctionId, BidderId, BidId } from '../common/ids';
 import { cents } from '../common/money';
 import { createValidationPipe } from '../common/validation-pipe';
@@ -29,7 +31,12 @@ describe('BidController', () => {
       placedAt,
     },
     closeAt,
-    previousLeader: { bidId: 'bid-1' as BidId, bidderId: 'bidder-1' as BidderId, amountCents: cents(5_000) },
+    previousLeader: {
+      bidId: 'bid-1' as BidId,
+      bidderId: 'bidder-1' as BidderId,
+      amountCents: cents(5_000),
+      hold: null,
+    },
   };
   let app: INestApplication;
   let baseUrl: string;
@@ -105,11 +112,14 @@ describe('BidController', () => {
       [new InvalidValueError('bid_below_minimum'), 'bid_below_minimum', 400],
       [new InvalidValueError('bid_above_maximum'), 'bid_above_maximum', 400],
       [new UnauthorizedError('bidder_token_required'), 'bidder_token_required', 401],
+      [new PaymentRequiredError('card_declined'), 'card_declined', 402],
       [new ForbiddenError('card_required'), 'card_required', 403],
       [new ForbiddenError('self_bid_not_allowed'), 'self_bid_not_allowed', 403],
       [new NotFoundError('auction_not_found'), 'auction_not_found', 404],
       [new ConflictError('auction_not_open'), 'auction_not_open', 409],
       [new ConflictError('already_leading'), 'already_leading', 409],
+      [new StripeUnavailableError(), 'stripe_unavailable', 502],
+      [new StripeMisconfiguredError(), 'stripe_misconfigured', 502],
     ])('maps %j to its status', async (error, code, status) => {
       placeBid.mockRejectedValue(error);
 

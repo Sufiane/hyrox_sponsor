@@ -1,9 +1,14 @@
 import { JwtService } from '@nestjs/jwt';
+import { mockDeep } from 'vitest-mock-extended';
 import type { Prisma } from '@prisma/client';
 import { BidderTokenService } from '../../../bidders/bidder-token.service';
 import { ConflictError, UnauthorizedError } from '../../../common/domain-error';
 import { bidderId, type AuctionId } from '../../../common/ids';
 import { cents } from '../../../common/money';
+import { stripePaymentIntentId } from '../../../common/stripe-ids';
+import { EscrowTransactionDb } from '../../../escrow/escrow-transaction.db';
+import { EscrowTransactionService } from '../../../escrow/escrow-transaction.service';
+import type { StripeGateway } from '../../../stripe/stripe-gateway';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import { createAthlete, createAuction, createBidder, createRaceEntry } from '../../../testing/fixture-utilities';
 import {
@@ -40,13 +45,43 @@ describe.skipIf(!reachable)('PlaceBidUsecase (postgres)', () => {
   let usecase: PlaceBidUsecase;
   let tokens: BidderTokenService;
   let closeDb: CloseAuctionsUsecaseDb;
+  let authorized: string[];
+  let canceled: string[];
+  let decline: boolean;
 
   beforeAll(async () => {
     database = await createThrowawayDatabase(adminUrl);
     prisma = database.prisma;
     tokens = new BidderTokenService(new JwtService({ secret: SECRET }), { ttlSeconds: 900 });
-    usecase = new PlaceBidUsecase(new PlaceBidUsecaseDb(prisma), tokens);
+    const gateway = mockDeep<StripeGateway>();
+
+    gateway.authorizeHold.mockImplementation(async (holdInput) => {
+      if (decline) {
+        return { outcome: 'declined', reason: 'insufficient_funds' };
+      }
+
+      const paymentIntentId = stripePaymentIntentId(`pi_${holdInput.attemptId.replaceAll('-', '')}`);
+
+      authorized.push(paymentIntentId);
+
+      return { outcome: 'authorized', paymentIntentId, captureBefore: null };
+    });
+    gateway.cancelHold.mockImplementation(async (paymentIntentId) => {
+      canceled.push(paymentIntentId);
+    });
+    usecase = new PlaceBidUsecase(
+      new PlaceBidUsecaseDb(prisma),
+      tokens,
+      gateway,
+      new EscrowTransactionService(new EscrowTransactionDb(prisma), gateway),
+    );
     closeDb = new CloseAuctionsUsecaseDb(prisma);
+  });
+
+  beforeEach(() => {
+    authorized = [];
+    canceled = [];
+    decline = false;
   });
 
   afterAll(async () => {
@@ -115,6 +150,12 @@ describe.skipIf(!reachable)('PlaceBidUsecase (postgres)', () => {
     return prisma.bid.findMany({ where: { auctionId }, orderBy: { placedAt: 'asc' } });
   }
 
+  function escrowOf(
+    auctionId: AuctionId,
+  ): Promise<Array<{ bidId: string; type: string; stripePaymentIntentId: string; amountCents: number }>> {
+    return prisma.escrowTransaction.findMany({ where: { bid: { auctionId } }, orderBy: { createdAt: 'asc' } });
+  }
+
   describe('when six bidders race the same valid amount', () => {
     it('lets exactly one win and rejects the rest', async () => {
       const { auctionId } = await seedAuction();
@@ -131,6 +172,53 @@ describe.skipIf(!reachable)('PlaceBidUsecase (postgres)', () => {
       expect(codes).toEqual(Array(5).fill('bid_below_minimum'));
       expect(bids.filter((bid) => bid.status === 'LEADING')).toHaveLength(1);
       expect(auction.currentLeadingBidId).toBe(bids[0].id);
+    });
+
+    it('keeps exactly one hold on the winner and cancels every loser hold', async () => {
+      const { auctionId } = await seedAuction();
+      const inputs = await Promise.all([0, 1, 2, 3, 4, 5].map((index) => bidAs(auctionId, `hold-same-${index}`, 1500)));
+
+      await Promise.allSettled(inputs.map((bidInput) => usecase.execute(bidInput)));
+
+      const rows = await escrowOf(auctionId);
+      const leading = (await bidsOf(auctionId)).filter((bid) => bid.status === 'LEADING');
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ bidId: leading[0].id, type: 'AUTHORIZED', amountCents: 1500 });
+      expect([...canceled].sort()).toEqual(authorized.filter((id) => id !== rows[0].stripePaymentIntentId).sort());
+    });
+  });
+
+  describe('when a held leader is outbid', () => {
+    it('voids the previous hold exactly once', async () => {
+      const { auctionId } = await seedAuction();
+      const first = await usecase.execute(await bidAs(auctionId, 'hold-first', 1500));
+      const second = await usecase.execute(await bidAs(auctionId, 'hold-second', 2000));
+
+      const rows = await escrowOf(auctionId);
+      const firstRows = rows.filter((row) => row.bidId === first.bid.id);
+      const secondRows = rows.filter((row) => row.bidId === second.bid.id);
+
+      expect(firstRows.map((row) => row.type)).toEqual(['AUTHORIZED', 'VOIDED']);
+      expect(firstRows[1]).toMatchObject({
+        stripePaymentIntentId: firstRows[0].stripePaymentIntentId,
+        amountCents: 1500,
+      });
+      expect(secondRows.map((row) => row.type)).toEqual(['AUTHORIZED']);
+      expect(canceled).toEqual([firstRows[0].stripePaymentIntentId]);
+    });
+  });
+
+  describe('when the card is declined', () => {
+    it('writes no bid and no escrow row', async () => {
+      const { auctionId } = await seedAuction();
+      const bidInput = await bidAs(auctionId, 'hold-declined', 1500);
+
+      decline = true;
+
+      await expect(usecase.execute(bidInput)).rejects.toMatchObject({ code: 'card_declined' });
+      expect(await bidsOf(auctionId)).toHaveLength(0);
+      expect(await escrowOf(auctionId)).toHaveLength(0);
     });
   });
 
@@ -177,6 +265,10 @@ describe.skipIf(!reachable)('PlaceBidUsecase (postgres)', () => {
 
       expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
       expect(results.map(errorCode).filter((code) => code !== null)).toEqual(['already_leading']);
+      expect(canceled).toHaveLength(authorized.length - 1);
+      expect((await escrowOf(auctionId)).map((row) => row.stripePaymentIntentId)).toEqual(
+        authorized.filter((id) => id !== canceled[0]),
+      );
     });
   });
 
@@ -250,12 +342,16 @@ describe.skipIf(!reachable)('PlaceBidUsecase (postgres)', () => {
 
       expect(await outcome).toEqual(new ConflictError('auction_not_open'));
       expect(await bidsOf(auctionId)).toHaveLength(0);
+      expect(authorized).toHaveLength(1);
+      expect(canceled).toEqual(authorized);
     });
   });
 
   describe('when a bid races the close job', () => {
     it('never leaves a LEADING bid on a closed auction', async () => {
       for (let iteration = 0; iteration < 25; iteration++) {
+        authorized = [];
+        canceled = [];
         const bidderToken = await cardedBidderToken(`racer-${iteration}`);
         const closeAt = new Date(Date.now() + 10 + iteration * 4);
         const { auctionId } = await seedAuction({ closeAt });
@@ -267,6 +363,7 @@ describe.skipIf(!reachable)('PlaceBidUsecase (postgres)', () => {
 
         const auction = await prisma.auction.findUniqueOrThrow({ where: { id: auctionId } });
         const bids = await bidsOf(auctionId);
+        const rows = await escrowOf(auctionId);
 
         expect(auction.status).toBe('CLOSED');
         expect(bids.filter((bid) => bid.status === 'LEADING')).toHaveLength(0);
@@ -275,10 +372,15 @@ describe.skipIf(!reachable)('PlaceBidUsecase (postgres)', () => {
           expect(bids).toHaveLength(1);
           expect(bids[0].status).toBe('WON');
           expect(auction.outcome).toBe('AWAITING_PROOF');
+          expect(rows).toHaveLength(1);
+          expect(rows[0]).toMatchObject({ bidId: bids[0].id, type: 'AUTHORIZED' });
+          expect(canceled).toHaveLength(0);
         } else {
           expect(errorCode(bidResult)).toBe('auction_not_open');
           expect(bids).toHaveLength(0);
           expect(auction.outcome).toBe('NO_SALE');
+          expect(rows).toHaveLength(0);
+          expect(canceled).toEqual(authorized);
         }
       }
     });
