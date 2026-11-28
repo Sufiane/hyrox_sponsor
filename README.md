@@ -172,6 +172,9 @@ An in-process job (`AuctionSchedulerTask`, every 60 s) drives the auction lifecy
 - Header `X-Bidder-Token`: required. The token comes from `POST /bidders/setup-intents` and must carry the bidder's current token version.
 - The bidder must have a saved card (`default_payment_method_id` and `stripe_customer_id` set).
 - Body: `{ "amountCents": integer >= 1 }`. Amounts are integer cents. Unknown fields are rejected with `400 validation_failed`, including `email` (removed in HYR-11) and `bidderId`.
+- Hold: every accepted bid holds its full amount on the saved card (manual-capture PaymentIntent, `off_session`, card only), authorized before the bid transaction and recorded as an `AUTHORIZED` escrow row with `capture_before`. Rules are checked once without the lock before any Stripe call, then again under the lock. If the locked place fails, the new hold is canceled and the original error returned.
+- Outbid: after the new bid commits, the previous leader's hold is canceled and a `VOIDED` row is written. A failed release does not fail the bid (still `201`).
+- Holds are captured at close by HYR-12.
 - `201` response: `bidId`, `auctionId`, `amountCents`, `status` (always `LEADING`), `placedAt`, `closeAt`, `minimumNextBidCents`. It never carries bidder identity.
 - Errors, as `{ statusCode, message: <code>, error }`:
 
@@ -179,13 +182,17 @@ An in-process job (`AuctionSchedulerTask`, every 60 s) drives the auction lifecy
 |---|---|
 | 400 | `validation_failed`, `auction_id_invalid`, `bid_below_minimum`, `bid_above_maximum` |
 | 401 | `bidder_token_required` (missing, malformed, expired, unknown bidder, or stale version) |
-| 403 | `card_required` (no saved card or no Stripe customer), `self_bid_not_allowed` (the token bidder's email is the athlete email; the ticket text called it `cannot_bid_on_own_auction`) |
+| 402 | `card_declined` (the hold was declined; the decline code is logged, never returned) |
+| 403 | `card_required` (no saved card, no Stripe customer, or Stripe cannot use the saved card), `self_bid_not_allowed` (the token bidder's email is the athlete email; the ticket text called it `cannot_bid_on_own_auction`) |
 | 404 | `auction_not_found` |
 | 409 | `auction_not_open` (not open, closed, or seller banned), `already_leading` |
+| 422 | `stripe_request_rejected` (Stripe rejected the hold request for a reason other than the card) |
 | 429 | throttled |
+| 502 | `stripe_unavailable`, `stripe_misconfigured` |
 
 - Throttle: 10 requests per minute per client IP, counting rejected requests, in-memory per instance (effective limit is 10 x instance count). The IP is correct only when `TRUST_PROXY_HOPS` matches the topology; at 0 behind a proxy all bidders share the proxy's bucket.
-- No public exposure yet: saving a card bumps the token version, so the card owner's own token goes stale and nobody with a saved card can bid until the post-card-save token reissue ships (HYR-64, spec D2). Bids also place no Stripe hold yet (HYR-11 PR C2).
+- Orphan holds: a failed compensating cancel or outbid release is logged at `error` (grep `was not canceled`, `was not released`), as is a hold authorization that threw (grep `Hold authorization failed`, with the attempt id from PaymentIntent metadata). If the transaction errors after the bid was written, the bid row is checked. If it exists, the bid stands: `201`, previous hold released, logged at `warn`. If it is absent, the hold is canceled. If the check fails, the hold is kept and the previous one not released (logged at `error`). Until the reconciliation sweep ticket lands, Stripe drops such holds at `capture_before` (about 7 days).
+- No public exposure yet: saving a card bumps the token version, so the card owner's own token goes stale and nobody with a saved card can bid until the post-card-save token reissue ships (HYR-64, spec D2).
 - Specs: `docs/specs/2026-10-19-hyr-40-bid-placement-endpoint-design.md`, `docs/specs/2026-11-27-hyr-11-bid-authorization-hold-design.md`. Manual concurrency checks: `docs/qa/hyr-40-bid-concurrency-checklist.md`.
 
 ## Bidder payment setup (HYR-59)

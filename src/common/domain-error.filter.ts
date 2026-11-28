@@ -7,6 +7,7 @@ import {
   ForbiddenError,
   InvalidValueError,
   NotFoundError,
+  PaymentRequiredError,
   UnauthorizedError,
 } from './domain-error';
 
@@ -15,6 +16,7 @@ type DomainErrorClass = abstract new (...args: never[]) => DomainError;
 const STATUS_BY_ERROR: ReadonlyArray<readonly [DomainErrorClass, HttpStatus]> = [
   [InvalidValueError, HttpStatus.BAD_REQUEST],
   [UnauthorizedError, HttpStatus.UNAUTHORIZED],
+  [PaymentRequiredError, HttpStatus.PAYMENT_REQUIRED],
   [ForbiddenError, HttpStatus.FORBIDDEN],
   [NotFoundError, HttpStatus.NOT_FOUND],
   [ConflictError, HttpStatus.CONFLICT],
@@ -26,6 +28,7 @@ const STATUS_BY_ERROR: ReadonlyArray<readonly [DomainErrorClass, HttpStatus]> = 
 const ERROR_LABEL_BY_STATUS: Partial<Record<HttpStatus, string>> = {
   [HttpStatus.BAD_REQUEST]: 'Bad Request',
   [HttpStatus.UNAUTHORIZED]: 'Unauthorized',
+  [HttpStatus.PAYMENT_REQUIRED]: 'Payment Required',
   [HttpStatus.FORBIDDEN]: 'Forbidden',
   [HttpStatus.NOT_FOUND]: 'Not Found',
   [HttpStatus.CONFLICT]: 'Conflict',

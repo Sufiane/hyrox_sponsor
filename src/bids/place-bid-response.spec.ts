@@ -38,7 +38,12 @@ describe('toPlaceBidResponse', () => {
   });
 
   describe('when mapping a result', () => {
-    const previousLeader = { bidId: 'bid-1' as BidId, bidderId: 'bidder-1' as BidderId, amountCents: cents(4_000) };
+    const previousLeader = {
+      bidId: 'bid-1' as BidId,
+      bidderId: 'bidder-1' as BidderId,
+      amountCents: cents(4_000),
+      hold: null,
+    };
 
     it('exposes exactly the public fields', () => {
       const response = toPlaceBidResponse(result(5_000, previousLeader));

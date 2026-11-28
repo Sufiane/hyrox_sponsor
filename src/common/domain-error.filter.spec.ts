@@ -6,6 +6,7 @@ import {
   ForbiddenError,
   InvalidValueError,
   NotFoundError,
+  PaymentRequiredError,
   UnauthorizedError,
 } from './domain-error';
 import { StripeMisconfiguredError, StripeRejectedError, StripeUnavailableError } from './stripe-errors';
@@ -72,6 +73,17 @@ describe('DomainErrorFilter', () => {
     it('responds 401 with the Unauthorized body', () => {
       expect(status).toHaveBeenCalledWith(401);
       expect(json).toHaveBeenCalledWith({ statusCode: 401, message: 'bidder_token_required', error: 'Unauthorized' });
+    });
+  });
+
+  describe('when a PaymentRequiredError is caught', () => {
+    beforeEach(() => {
+      filter.catch(new PaymentRequiredError('card_declined'), host);
+    });
+
+    it('responds 402 with the Payment Required body', () => {
+      expect(status).toHaveBeenCalledWith(402);
+      expect(json).toHaveBeenCalledWith({ statusCode: 402, message: 'card_declined', error: 'Payment Required' });
     });
   });
 

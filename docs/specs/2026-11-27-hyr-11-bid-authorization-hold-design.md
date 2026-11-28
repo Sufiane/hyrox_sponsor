@@ -197,7 +197,8 @@ C1 alone makes bids require token + card but places no hold (still non-binding, 
 ## 8. Known risks accepted
 
 - Expired hold at close for early leaders (D1 option c): decline possible at close; HYR-12 owns the outcome.
-- Orphan holds: process crash between authorize and commit, or a failed compensating cancel / release. Bidder funds held until `capture_before` (up to ~7 days). Mitigated by `error` logs and the follow-up sweep.
+- Orphan holds: process crash between authorize and commit, a Stripe timeout after Stripe already created the PaymentIntent (the adapter throws, the attempt id is logged at `error`), an ambiguous commit whose bid lookup also fails, or a failed compensating cancel / release. Bidder funds held until `capture_before` (up to ~7 days). Mitigated by `error` logs and the follow-up sweep (finds them via `attemptId` metadata).
+- Ambiguous commit (transaction throws after the bid was written): a follow-up read decides. Bid found: treated as success (previous leader released, 201). Bid absent: hold canceled. Read fails: hold kept. The read runs on another connection, so a commit still in flight could be missed and its hold canceled; this window is far narrower than the original failure and is accepted.
 - Double hold during a lost race: two concurrent bidders both get a hold for a few hundred ms; the loser's is canceled. A cancel shows as a short pending charge on some banking apps.
 - Card owner lockout (D2) until the reissue ticket ships.
 - `requires_action` (SCA) is treated as a decline; US-only cards rarely trigger it. If they do, a client-side confirmation flow is its own ticket.
