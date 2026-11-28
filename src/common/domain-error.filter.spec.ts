@@ -1,6 +1,13 @@
 import { Logger, type ArgumentsHost } from '@nestjs/common';
 import { type MockInstance } from 'vitest';
-import { ConflictError, DomainError, ForbiddenError, InvalidValueError, NotFoundError } from './domain-error';
+import {
+  ConflictError,
+  DomainError,
+  ForbiddenError,
+  InvalidValueError,
+  NotFoundError,
+  UnauthorizedError,
+} from './domain-error';
 import { StripeMisconfiguredError, StripeRejectedError, StripeUnavailableError } from './stripe-errors';
 import { DomainErrorFilter } from './domain-error.filter';
 
@@ -54,6 +61,17 @@ describe('DomainErrorFilter', () => {
     it('responds 404 with the Not Found body', () => {
       expect(status).toHaveBeenCalledWith(404);
       expect(json).toHaveBeenCalledWith({ statusCode: 404, message: 'athlete_not_found', error: 'Not Found' });
+    });
+  });
+
+  describe('when an UnauthorizedError is caught', () => {
+    beforeEach(() => {
+      filter.catch(new UnauthorizedError('bidder_token_required'), host);
+    });
+
+    it('responds 401 with the Unauthorized body', () => {
+      expect(status).toHaveBeenCalledWith(401);
+      expect(json).toHaveBeenCalledWith({ statusCode: 401, message: 'bidder_token_required', error: 'Unauthorized' });
     });
   });
 

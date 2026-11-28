@@ -1,9 +1,17 @@
 import { mock, mockDeep, type DeepMockProxy, type MockProxy } from 'vitest-mock-extended';
 import { Logger } from '@nestjs/common';
-import { ConflictError, ForbiddenError, InvalidValueError, NotFoundError } from '../../../common/domain-error';
+import type { BidderTokenService } from '../../../bidders/bidder-token.service';
+import {
+  ConflictError,
+  ForbiddenError,
+  InvalidValueError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../../../common/domain-error';
 import type { NormalizedEmail } from '../../../common/email';
 import type { AuctionId, BidderId, BidId } from '../../../common/ids';
 import { cents } from '../../../common/money';
+import { stripeCustomerId, stripePaymentMethodId } from '../../../common/stripe-ids';
 import { PlaceBidUsecase, type PlaceBidInput } from './place-bid.usecase';
 import type { LockedAuction, PlaceBidSession, PlacedBid, PlaceBidUsecaseDb } from './place-bid.usecase.db';
 
@@ -11,12 +19,13 @@ describe('PlaceBidUsecase', () => {
   const auctionId = 'auction-1' as AuctionId;
   const placedAt = new Date('2026-11-08T12:00:00Z');
   let db: DeepMockProxy<PlaceBidUsecaseDb>;
+  let tokens: DeepMockProxy<BidderTokenService>;
   let session: MockProxy<PlaceBidSession>;
   let auction: LockedAuction;
   let usecase: PlaceBidUsecase;
 
   function input(overrides: Partial<PlaceBidInput> = {}): PlaceBidInput {
-    return { auctionId, email: 'brand@example.com' as NormalizedEmail, amountCents: cents(1000), ...overrides };
+    return { auctionId, bidderToken: 'token-1', amountCents: cents(1000), ...overrides };
   }
 
   function leader(bidderId: string, amount: number): void {
@@ -35,6 +44,15 @@ describe('PlaceBidUsecase', () => {
   beforeEach(() => {
     vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     db = mockDeep<PlaceBidUsecaseDb>();
+    tokens = mockDeep<BidderTokenService>();
+    tokens.verify.mockResolvedValue({ bidderId: 'bidder-2' as BidderId, tokenVersion: 1 });
+    db.findBidder.mockResolvedValue({
+      id: 'bidder-2' as BidderId,
+      email: 'brand@example.com' as NormalizedEmail,
+      tokenVersion: 1,
+      stripeCustomerId: stripeCustomerId('cus_2'),
+      defaultPaymentMethodId: stripePaymentMethodId('pm_2'),
+    });
     session = mock<PlaceBidSession>();
     auction = {
       status: 'OPEN',
@@ -48,7 +66,6 @@ describe('PlaceBidUsecase', () => {
       _id: AuctionId,
       work: (locked: LockedAuction, bound: PlaceBidSession) => Promise<unknown>,
     ) => work(auction, session)) as never);
-    session.upsertBidder.mockResolvedValue('bidder-2' as BidderId);
     session.findLeading.mockResolvedValue(null);
     session.insertLeading.mockImplementation(async (bidderId, amountCents): Promise<PlacedBid> => ({
       id: 'bid-2' as BidId,
@@ -57,7 +74,7 @@ describe('PlaceBidUsecase', () => {
       amountCents,
       placedAt,
     }));
-    usecase = new PlaceBidUsecase(db);
+    usecase = new PlaceBidUsecase(db, tokens);
   });
 
   afterEach(() => {
@@ -70,6 +87,94 @@ describe('PlaceBidUsecase', () => {
         new InvalidValueError('bid_above_maximum'),
       );
       expect(db.withLockedAuction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('when the bidder token is rejected', () => {
+    beforeEach(() => {
+      tokens.verify.mockRejectedValue(new UnauthorizedError('bidder_token_required'));
+    });
+
+    it('rejects without opening a transaction', async () => {
+      await expect(usecase.execute(input())).rejects.toThrow(new UnauthorizedError('bidder_token_required'));
+      expect(db.withLockedAuction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('when the token bidder no longer exists', () => {
+    beforeEach(() => {
+      db.findBidder.mockResolvedValue(null);
+    });
+
+    it('rejects as token required', async () => {
+      await expect(usecase.execute(input())).rejects.toThrow(new UnauthorizedError('bidder_token_required'));
+      expect(db.withLockedAuction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('when the token is not current for the bidder', () => {
+    beforeEach(() => {
+      tokens.verify.mockResolvedValue({ bidderId: 'bidder-2' as BidderId, tokenVersion: 0 });
+      tokens.assertCurrent.mockImplementation(() => {
+        throw new UnauthorizedError('bidder_token_required');
+      });
+    });
+
+    it('checks the token against the stored bidder', async () => {
+      await expect(usecase.execute(input())).rejects.toThrow(new UnauthorizedError('bidder_token_required'));
+      expect(tokens.assertCurrent).toHaveBeenCalledWith(
+        { bidderId: 'bidder-2', tokenVersion: 0 },
+        { id: 'bidder-2', tokenVersion: 1 },
+      );
+    });
+
+    it('opens no transaction', async () => {
+      await expect(usecase.execute(input())).rejects.toThrow();
+      expect(db.withLockedAuction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('when the bidder has no saved card', () => {
+    beforeEach(() => {
+      db.findBidder.mockResolvedValue({
+        id: 'bidder-2' as BidderId,
+        email: 'brand@example.com' as NormalizedEmail,
+        tokenVersion: 1,
+        stripeCustomerId: stripeCustomerId('cus_2'),
+        defaultPaymentMethodId: null,
+      });
+    });
+
+    it('rejects as card required', async () => {
+      await expect(usecase.execute(input())).rejects.toThrow(new ForbiddenError('card_required'));
+      expect(db.withLockedAuction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('when the bidder has no stripe customer', () => {
+    beforeEach(() => {
+      db.findBidder.mockResolvedValue({
+        id: 'bidder-2' as BidderId,
+        email: 'brand@example.com' as NormalizedEmail,
+        tokenVersion: 1,
+        stripeCustomerId: null,
+        defaultPaymentMethodId: stripePaymentMethodId('pm_2'),
+      });
+    });
+
+    it('rejects as card required', async () => {
+      await expect(usecase.execute(input())).rejects.toThrow(new ForbiddenError('card_required'));
+      expect(db.withLockedAuction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('when the bid is accepted', () => {
+    it('inserts the leading bid for the token bidder', async () => {
+      await usecase.execute(input());
+
+      expect(tokens.verify).toHaveBeenCalledWith('token-1');
+      expect(db.findBidder).toHaveBeenCalledWith('bidder-2');
+      expect(session.insertLeading).toHaveBeenCalledWith('bidder-2', 1000);
     });
   });
 
@@ -134,11 +239,18 @@ describe('PlaceBidUsecase', () => {
   });
 
   describe('when the bidder email is the athlete email', () => {
-    it('rejects the self-bid before touching bidders', async () => {
-      await expect(usecase.execute(input({ email: auction.athleteEmail }))).rejects.toThrow(
-        new ForbiddenError('self_bid_not_allowed'),
-      );
-      expect(session.upsertBidder).not.toHaveBeenCalled();
+    beforeEach(() => {
+      db.findBidder.mockResolvedValue({
+        id: 'bidder-2' as BidderId,
+        email: auction.athleteEmail,
+        tokenVersion: 1,
+        stripeCustomerId: stripeCustomerId('cus_2'),
+        defaultPaymentMethodId: stripePaymentMethodId('pm_2'),
+      });
+    });
+
+    it('rejects the self-bid', async () => {
+      await expect(usecase.execute(input())).rejects.toThrow(new ForbiddenError('self_bid_not_allowed'));
       expectNoWrites();
     });
   });

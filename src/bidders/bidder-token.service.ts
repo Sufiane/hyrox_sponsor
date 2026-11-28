@@ -1,6 +1,7 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { bidderToken, type BidderToken } from '../common/bidder-token';
+import { UnauthorizedError } from '../common/domain-error';
 import { bidderId, type BidderId } from '../common/ids';
 import { BidderTokenConfig } from './bidder-token.config';
 
@@ -9,6 +10,8 @@ const TOKEN_ISSUER = 'hyrox-api';
 const MILLIS_PER_SECOND = 1000;
 
 export type VerifiedBidderToken = { bidderId: BidderId; tokenVersion: number };
+
+export type CurrentBidderTokenState = { id: BidderId; tokenVersion: number };
 
 export type IssuedBidderToken = { token: BidderToken; expiresAt: Date };
 
@@ -57,6 +60,18 @@ export class BidderTokenService {
     }
   }
 
+  assertCurrent(verified: VerifiedBidderToken, current: CurrentBidderTokenState): void {
+    if (verified.bidderId !== current.id) {
+      throw this.reject(`token for ${verified.bidderId} presented for bidder ${current.id}`);
+    }
+
+    if (verified.tokenVersion !== current.tokenVersion) {
+      throw this.reject(
+        `version ${verified.tokenVersion} is stale for bidder ${current.id} (current ${current.tokenVersion})`,
+      );
+    }
+  }
+
   private async decode(token: string): Promise<{ sub?: unknown; ver?: unknown }> {
     try {
       return await this.jwt.verifyAsync<{ sub?: unknown; ver?: unknown }>(token, {
@@ -69,9 +84,9 @@ export class BidderTokenService {
     }
   }
 
-  private reject(reason: string): UnauthorizedException {
+  private reject(reason: string): UnauthorizedError {
     this.logger.warn(`Bidder token rejected: ${reason}`);
 
-    return new UnauthorizedException('bidder_token_required');
+    return new UnauthorizedError('bidder_token_required');
   }
 }

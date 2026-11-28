@@ -1,5 +1,4 @@
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
-import type { NormalizedEmail } from '../../../common/email';
 import type { AuctionId, BidderId, BidId } from '../../../common/ids';
 import { cents } from '../../../common/money';
 import type { PrismaService } from '../../../prisma/prisma.service';
@@ -18,6 +17,63 @@ describe('PlaceBidUsecaseDb', () => {
     tx = mockDeep<PrismaService>();
     prisma.$transaction.mockImplementation(((callback: (client: unknown) => unknown) => callback(tx)) as never);
     db = new PlaceBidUsecaseDb(prisma);
+  });
+
+  describe('findBidder', () => {
+    describe('when the bidder exists with a card', () => {
+      beforeEach(() => {
+        prisma.bidder.findUnique.mockResolvedValue({
+          id: 'bidder-1',
+          email: 'brand@example.com',
+          tokenVersion: 2,
+          stripeCustomerId: 'cus_1',
+          defaultPaymentMethodId: 'pm_1',
+        } as never);
+      });
+
+      it('returns the branded bidder', async () => {
+        await expect(db.findBidder('bidder-1' as BidderId)).resolves.toEqual({
+          id: 'bidder-1',
+          email: 'brand@example.com',
+          tokenVersion: 2,
+          stripeCustomerId: 'cus_1',
+          defaultPaymentMethodId: 'pm_1',
+        });
+        expect(prisma.bidder.findUnique).toHaveBeenCalledWith({
+          where: { id: 'bidder-1' },
+          select: { id: true, email: true, tokenVersion: true, stripeCustomerId: true, defaultPaymentMethodId: true },
+        });
+      });
+    });
+
+    describe('when the bidder has no card', () => {
+      beforeEach(() => {
+        prisma.bidder.findUnique.mockResolvedValue({
+          id: 'bidder-1',
+          email: 'brand@example.com',
+          tokenVersion: 0,
+          stripeCustomerId: null,
+          defaultPaymentMethodId: null,
+        } as never);
+      });
+
+      it('returns null card fields', async () => {
+        await expect(db.findBidder('bidder-1' as BidderId)).resolves.toMatchObject({
+          stripeCustomerId: null,
+          defaultPaymentMethodId: null,
+        });
+      });
+    });
+
+    describe('when the bidder does not exist', () => {
+      beforeEach(() => {
+        prisma.bidder.findUnique.mockResolvedValue(null);
+      });
+
+      it('returns null', async () => {
+        await expect(db.findBidder('bidder-1' as BidderId)).resolves.toBeNull();
+      });
+    });
   });
 
   describe('withLockedAuction', () => {
@@ -108,21 +164,6 @@ describe('PlaceBidUsecaseDb', () => {
       } as never);
       await db.withLockedAuction(auctionId, async (_auction, boundSession) => {
         session = boundSession;
-      });
-    });
-
-    describe('upsertBidder', () => {
-      it('upserts by email and returns the bidder id', async () => {
-        tx.bidder.upsert.mockResolvedValue({ id: 'bidder-1' } as never);
-
-        const result = await session.upsertBidder('brand@example.com' as NormalizedEmail);
-
-        expect(result).toBe('bidder-1');
-        expect(tx.bidder.upsert).toHaveBeenCalledWith({
-          where: { email: 'brand@example.com' },
-          create: { email: 'brand@example.com' },
-          update: {},
-        });
       });
     });
 

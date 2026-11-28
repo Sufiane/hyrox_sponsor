@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { BidderToken } from '../../../common/bidder-token';
 import { normalizeEmail, type NormalizedEmail } from '../../../common/email';
 import { bidderId, type BidderId } from '../../../common/ids';
@@ -70,19 +70,7 @@ export class CreatePaymentSetupUsecase {
   private async requireOwnership(bidder: BidderRecord, rawToken: string | undefined): Promise<void> {
     const verified = await this.tokens.verify(rawToken);
 
-    if (verified.bidderId !== bidder.id) {
-      this.logger.warn(`Bidder token for ${verified.bidderId} presented for bidder ${bidder.id}`);
-
-      throw new UnauthorizedException('bidder_token_required');
-    }
-
-    if (verified.tokenVersion !== bidder.tokenVersion) {
-      this.logger.warn(
-        `Bidder token version ${verified.tokenVersion} is stale for bidder ${bidder.id} (current ${bidder.tokenVersion})`,
-      );
-
-      throw new UnauthorizedException('bidder_token_required');
-    }
+    this.tokens.assertCurrent(verified, { id: bidderId(bidder.id), tokenVersion: bidder.tokenVersion });
   }
 
   private async ensureCustomer(id: BidderId, email: NormalizedEmail, bidder: BidderRecord): Promise<StripeCustomerId> {

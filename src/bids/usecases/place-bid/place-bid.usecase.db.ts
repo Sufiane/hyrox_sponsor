@@ -3,6 +3,12 @@ import type { Prisma } from '@prisma/client';
 import { normalizeEmail, type NormalizedEmail } from '../../../common/email';
 import type { AuctionId, BidderId, BidId } from '../../../common/ids';
 import { cents, type Cents } from '../../../common/money';
+import {
+  stripeCustomerId,
+  stripePaymentMethodId,
+  type StripeCustomerId,
+  type StripePaymentMethodId,
+} from '../../../common/stripe-ids';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 const TRANSACTION_TIMEOUT_MS = 10_000;
@@ -16,6 +22,14 @@ export type LockedAuction = {
   athleteBanned: boolean;
 };
 
+export type BiddingBidder = {
+  id: BidderId;
+  email: NormalizedEmail;
+  tokenVersion: number;
+  stripeCustomerId: StripeCustomerId | null;
+  defaultPaymentMethodId: StripePaymentMethodId | null;
+};
+
 export type LeadingBid = { id: BidId; bidderId: BidderId; amountCents: Cents };
 
 export type PlacedBid = {
@@ -27,7 +41,6 @@ export type PlacedBid = {
 };
 
 export interface PlaceBidSession {
-  upsertBidder(email: NormalizedEmail): Promise<BidderId>;
   findLeading(): Promise<LeadingBid | null>;
   markOutbid(bidId: BidId): Promise<void>;
   insertLeading(bidderId: BidderId, amountCents: Cents): Promise<PlacedBid>;
@@ -36,6 +49,26 @@ export interface PlaceBidSession {
 @Injectable()
 export class PlaceBidUsecaseDb {
   constructor(private readonly prisma: PrismaService) {}
+
+  async findBidder(id: BidderId): Promise<BiddingBidder | null> {
+    const bidder = await this.prisma.bidder.findUnique({
+      where: { id },
+      select: { id: true, email: true, tokenVersion: true, stripeCustomerId: true, defaultPaymentMethodId: true },
+    });
+
+    if (!bidder) {
+      return null;
+    }
+
+    return {
+      id,
+      email: normalizeEmail(bidder.email),
+      tokenVersion: bidder.tokenVersion,
+      stripeCustomerId: bidder.stripeCustomerId == null ? null : stripeCustomerId(bidder.stripeCustomerId),
+      defaultPaymentMethodId:
+        bidder.defaultPaymentMethodId == null ? null : stripePaymentMethodId(bidder.defaultPaymentMethodId),
+    };
+  }
 
   withLockedAuction<T>(
     auctionId: AuctionId,
@@ -80,11 +113,6 @@ export class PlaceBidUsecaseDb {
 
   private sessionFor(tx: Prisma.TransactionClient, auctionId: AuctionId): PlaceBidSession {
     return {
-      upsertBidder: async (email): Promise<BidderId> => {
-        const bidder = await tx.bidder.upsert({ where: { email }, create: { email }, update: {} });
-
-        return bidder.id as BidderId;
-      },
       findLeading: async (): Promise<LeadingBid | null> => {
         const leading = await tx.bid.findFirst({ where: { auctionId, status: 'LEADING' } });
 

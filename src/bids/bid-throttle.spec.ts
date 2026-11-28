@@ -50,7 +50,7 @@ async function postBid(baseUrl: string, forwardedFor: string): Promise<number> {
   const response = await fetch(`${baseUrl}/auctions/auc-1/bids`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': forwardedFor },
-    body: JSON.stringify({ email: 'jamie@x.com', amountCents: 5_500 }),
+    body: JSON.stringify({ amountCents: 5_500 }),
   });
 
   return response.status;

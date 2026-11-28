@@ -2,7 +2,6 @@ import { Test } from '@nestjs/testing';
 import { mockDeep, type DeepMockProxy } from 'vitest-mock-extended';
 import { BidService } from './bid.service';
 import { BidDb } from './bid.db';
-import type { NormalizedEmail } from '../common/email';
 import type { AuctionId } from '../common/ids';
 import { cents } from '../common/money';
 import { PlaceBidUsecase, type PlaceBidInput } from './usecases/place-bid/place-bid.usecase';
@@ -52,7 +51,7 @@ describe('BidService', () => {
   describe('placeBid', () => {
     const input: PlaceBidInput = {
       auctionId: 'auction-1' as AuctionId,
-      email: 'brand@example.com' as NormalizedEmail,
+      bidderToken: 'token-1',
       amountCents: cents(5500),
     };
 
